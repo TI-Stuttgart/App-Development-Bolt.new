@@ -23,11 +23,8 @@ import {
   ChevronUp,
   Download,
   RotateCcw,
-  Zap,
   Target,
   Crown,
-  Flame,
-  ArrowRight,
 } from 'lucide-react';
 import type { GameType } from '../lib/supabase';
 
@@ -786,50 +783,22 @@ function QueueBanner({
 
   const previewChain = buildPreviewChain();
 
-  return (
-    <div className="mb-6">
-      {gameNumber === 0 && !activeItem ? (
-        <div className="bg-slate-700/30 rounded-xl px-4 py-3 text-center border border-slate-600/50">
-          <Zap className="inline w-5 h-5 text-amber-500 mr-2" />
-          <span className="text-slate-300">Das erste Spiel ist ein normales Spiel</span>
-        </div>
-      ) : activeItem?.type === 'bock' ? (
-        <div className="bg-orange-500/20 rounded-xl px-4 py-3 flex items-center justify-between border border-orange-500/30">
-          <div className="flex items-center gap-3">
-            <Flame className="w-6 h-6 text-orange-400" />
-            <div>
-              <span className="font-semibold text-orange-300">Bockrunde</span>
-              <span className="text-orange-400 ml-2">Noch {activeItem.games_remaining} Spiele</span>
-            </div>
-          </div>
-        </div>
-      ) : activeItem?.type === 'ramsch' ? (
-        <div className="bg-red-500/20 rounded-xl px-4 py-3 flex items-center justify-between border border-red-500/30">
-          <div className="flex items-center gap-3">
-            <Target className="w-6 h-6 text-red-400" />
-            <div>
-              <span className="font-semibold text-red-300">Ramsch</span>
-              <span className="text-red-400 ml-2">Noch {activeItem.games_remaining} Spiele</span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-slate-700/30 rounded-xl px-4 py-3 flex items-center justify-between border border-slate-600/50">
-          <div className="flex items-center gap-3">
-            <Zap className="w-5 h-5 text-slate-400" />
-            <span className="text-slate-300">Normales Spiel (#{gameNumber + 1})</span>
-            <span className="text-slate-500">| Bockzähler: {totalBockGames}/{ramschThreshold}</span>
-          </div>
-          {totalBockGames >= ramschThreshold - 1 && (
-            <span className="text-amber-400 text-sm">Nächstes Bockspiel löst Ramsch aus!</span>
-          )}
-        </div>
-      )}
+  const statusLabel = activeItem?.type === 'bock' ? 'Bock'
+    : activeItem?.type === 'ramsch' ? 'Ramsch'
+    : 'Normal';
+  const statusColor = activeItem?.type === 'bock' ? 'text-orange-400'
+    : activeItem?.type === 'ramsch' ? 'text-red-400'
+    : 'text-slate-400';
 
-      <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
+  return (
+    <div className="mb-4">
+      <div className="bg-slate-800/50 rounded-lg px-4 py-2 border border-slate-700/50 mb-1">
+        <span className={`text-sm font-semibold ${statusColor}`}>{statusLabel}</span>
+      </div>
+      <div className="flex items-center gap-1 flex-wrap text-sm px-1">
         {previewChain.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            {idx > 0 && <ArrowRight className="w-4 h-4 text-slate-600" />}
+          <div key={idx} className="flex items-center gap-1">
+            {idx > 0 && <span className="text-slate-600 text-xs">›</span>}
             <span className={`font-bold ${item.color}`}>{item.label}</span>
           </div>
         ))}
@@ -954,7 +923,7 @@ function GameInputForm({
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setSoloistId(p.id)}
+                onClick={() => setSoloistId(soloistId === p.id ? '' : p.id)}
                 className={`px-4 py-2 rounded-lg font-medium transition-all ${
                   soloistId === p.id
                     ? 'bg-amber-500 text-white'
@@ -973,7 +942,10 @@ function GameInputForm({
               <button
                 key={`mit${n}`}
                 type="button"
-                onClick={() => { setBubenWith(true); setBubenCount(n); }}
+                onClick={() => {
+                  if (bubenWith === true && bubenCount === n) { setBubenWith(null); setBubenCount(null); }
+                  else { setBubenWith(true); setBubenCount(n); }
+                }}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                   bubenWith && bubenCount === n
                     ? 'bg-amber-500 text-white'
@@ -987,7 +959,10 @@ function GameInputForm({
               <button
                 key={`ohne${n}`}
                 type="button"
-                onClick={() => { setBubenWith(false); setBubenCount(4 - n); }}
+                onClick={() => {
+                  if (bubenWith === false && bubenCount === 4 - n) { setBubenWith(null); setBubenCount(null); }
+                  else { setBubenWith(false); setBubenCount(4 - n); }
+                }}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                   !bubenWith && bubenCount === 4 - n
                     ? 'bg-amber-500 text-white'

@@ -141,9 +141,6 @@ export function CreateSession({ onBack, onSessionCreated }: CreateSessionProps) 
 
             {/* Player Count */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-3">
-                Anzahl Spieler
-              </label>
               <div className="grid grid-cols-3 gap-3">
                 {[3, 4, 5].map((count) => (
                   <button
@@ -164,9 +161,6 @@ export function CreateSession({ onBack, onSessionCreated }: CreateSessionProps) 
 
             {/* Player Names */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-3">
-                Spielernamen (in Sitzreihenfolge)
-              </label>
               <div className="space-y-3">
                 {playerNames.map((name, index) => (
                   <div key={index} className="flex items-center gap-3">
@@ -198,14 +192,15 @@ export function CreateSession({ onBack, onSessionCreated }: CreateSessionProps) 
             {/* Cent per Point */}
             <div>
               <input
-                type="number"
-                value={centPerPoint}
+                type="text"
+                inputMode="numeric"
+                value={centPerPoint === '' ? '' : centPerPoint}
                 onChange={(e) => {
-                  const v = e.target.value;
-                  setCentPerPoint(v === '' ? '' : Math.max(1, parseInt(v) || 1));
+                  const v = e.target.value.replace(/[^0-9]/g, '');
+                  setCentPerPoint(v === '' ? '' : Math.max(1, Number(v)));
                 }}
                 className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                placeholder="ct/punkt"
+                placeholder="ct/Punkt"
               />
             </div>
 
