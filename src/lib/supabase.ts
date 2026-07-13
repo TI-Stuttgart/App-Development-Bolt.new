@@ -51,6 +51,7 @@ export type Game = {
   re: boolean;
   is_bock: boolean;
   is_ramsch: boolean;
+  is_spaltarsch: boolean;
   calculated_value: number;
   ramsch_schieben_count: number;
   ramsch_jungfrau: boolean;

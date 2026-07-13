@@ -62,6 +62,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
   const [re, setRe] = useState(false);
   const [isBock, setIsBock] = useState(false);
   const [isTischramsch, setIsTischramsch] = useState(false);
+  const [spaltarsch, setSpaltarsch] = useState(false);
 
   // Ramsch specific
   const [ramschSchieben, setRamschSchieben] = useState(0);
@@ -387,6 +388,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         ramsch_durchmarsch: ramschIsDM,
         ramsch_loser_id: ramschLoserIdComputed,
         lost_doubling_count: gameResult === 'lost' ? (kontra ? 1 : 0) + (re ? 1 : 0) + (gameIsBock ? 1 : 0) : 0,
+        is_spaltarsch: spaltarsch,
       };
 
       const { data: insertedGame, error: gameError } = await supabase
@@ -453,6 +455,15 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
       if (grandHandBock) {
         newBockCount += 1;
+      }
+
+      // Spaltarsch: add Ramsch + Bock at front of queue (highest priority)
+      if (spaltarsch) {
+        const maxPriority = queue.length > 0 ? Math.max(...queue.map(q => q.priority)) : 0;
+        await supabase.from('queue_items').insert([
+          { session_id: session.id, type: 'ramsch', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 2 },
+          { session_id: session.id, type: 'bock', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 1 },
+        ]);
       }
 
       if (!isRamschGame(gt)) {
@@ -523,6 +534,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     setKontra(false);
     setRe(false);
     setIsBock(false);
+    setSpaltarsch(false);
     setIsTischramsch(false);
     setRamschSchieben(0);
     setRamschJungfrau(false);
@@ -531,15 +543,10 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     setShowGameForm(false);
   };
 
-  // Handle Spaltarsch (60 points rule)
-  const handleSpaltarsch = async () => {
-    const newQueue = [...queue];
-    // Add Ramsch and Bock at front of queue
-    await supabase.from('queue_items').insert([
-      { session_id: session.id, type: 'ramsch', games_remaining: getGamesPerRound(session.player_count), priority: 999 },
-      { session_id: session.id, type: 'bock', games_remaining: getGamesPerRound(session.player_count), priority: 999 },
-    ]);
-    loadGameData();
+  // Handle Spaltarsch (60 points rule) - sets state; queue items inserted at save time
+  const handleSpaltarsch = () => {
+    setSpaltarsch(true);
+    setGameResult('lost');
   };
 
   // Game type options
@@ -613,7 +620,6 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           gameNumber={session.current_game_number}
           totalBockGames={session.total_bock_games}
           playerCount={session.player_count}
-          onSpaltarsch={handleSpaltarsch}
         />
 
         {/* Combined Skat-Zettel: Spieltisch + Spielliste */}
@@ -665,6 +671,12 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             setKontra={setKontra}
             re={re}
             setRe={setRe}
+            spaltarsch={spaltarsch}
+            onSpaltarsch={() => {
+              setSpaltarsch(true);
+              setGameResult('lost');
+              handleSpaltarsch();
+            }}
             isBock={isBock}
             setIsBock={setIsBock}
             isTischramsch={isTischramsch}
@@ -721,16 +733,13 @@ function QueueBanner({
   queue,
   gameNumber,
   totalBockGames,
-  playerCount,
-  onSpaltarsch
+  playerCount
 }: {
   queue: QueueItem[];
   gameNumber: number;
   totalBockGames: number;
   playerCount: number;
-  onSpaltarsch: () => void;
 }) {
-  void onSpaltarsch;
   const ramschThreshold = 2 * getGamesPerRound(playerCount);
   const gamesPerRound = getGamesPerRound(playerCount);
   const pendingItems = queue.filter(item => item.games_remaining > 0);
@@ -835,6 +844,8 @@ function GameInputForm({
   setKontra,
   re,
   setRe,
+  spaltarsch,
+  onSpaltarsch,
   isBock,
   setIsBock,
   isTischramsch,
@@ -881,6 +892,8 @@ function GameInputForm({
   setKontra: (b: boolean) => void;
   re: boolean;
   setRe: (b: boolean) => void;
+  spaltarsch: boolean;
+  onSpaltarsch: () => void;
   isBock: boolean;
   setIsBock: (b: boolean) => void;
   isTischramsch: boolean;
@@ -1031,6 +1044,7 @@ function GameInputForm({
             <div className="flex gap-1.5">
               <ToggleButton active={kontra} onClick={() => setKontra(!kontra)} label="Kontra" small disabled={!soloistId} />
               <ToggleButton active={re} onClick={() => setRe(!re)} label="Re" small disabled={!kontra} />
+              <ToggleButton active={spaltarsch} onClick={onSpaltarsch} label="Spaltarsch" small disabled={!soloistId} />
             </div>
             <div className="flex gap-1.5">
               <button
@@ -1100,13 +1114,12 @@ function GameInputForm({
                   <div key={p.id} className="flex items-center gap-3">
                     <span className={`w-24 text-sm font-medium truncate ${isLoser ? 'text-red-400' : 'text-slate-300'}`}>{p.name}</span>
                     <input
-                      type="number"
-                      min={0}
-                      max={120}
+                      type="text"
+                      inputMode="numeric"
                       value={val === 0 ? '' : val}
                       placeholder="0"
                       onChange={(e) => {
-                        const n = Math.max(0, Math.min(120, parseInt(e.target.value) || 0));
+                        const n = Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
                         setRamschPlayerPoints({ ...ramschPlayerPoints, [p.id]: n });
                       }}
                       className="w-24 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -1119,12 +1132,11 @@ function GameInputForm({
               <div className="flex items-center gap-3 border-t border-slate-700/50 pt-2">
                 <span className="w-24 text-sm font-medium text-slate-400">Skat</span>
                 <input
-                  type="number"
-                  min={0}
-                  max={120}
+                  type="text"
+                  inputMode="numeric"
                   value={ramschSkatPoints === 0 ? '' : ramschSkatPoints}
                   placeholder="0"
-                  onChange={(e) => setRamschSkatPoints(Math.max(0, Math.min(120, parseInt(e.target.value) || 0)))}
+                  onChange={(e) => setRamschSkatPoints(Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)))}
                   className="w-24 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 {(() => {
