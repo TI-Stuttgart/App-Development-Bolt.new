@@ -8,6 +8,7 @@ import {
   calculateGameValue,
   isNullType,
   isRamschType,
+  type ScoringResult,
 } from './scoring'
 
 type Props = {
@@ -49,11 +50,11 @@ export default function GameForm({
   onSubmit,
   onCancel,
 }: Props) {
-  const [gameType, setGameType] = useState<GameType>('kreuz')
+  const [gameType, setGameType] = useState<GameType | null>(null)
   const [soloistId, setSoloistId] = useState<string>('')
-  const [won, setWon] = useState(true)
-  const [bubenCount, setBubenCount] = useState(0)
-  const [bubenWith, setBubenWith] = useState(true)
+  const [won, setWon] = useState<boolean | null>(null)
+  const [bubenCount, setBubenCount] = useState<number | null>(null)
+  const [bubenWith, setBubenWith] = useState<boolean | null>(null)
   const [hand, setHand] = useState(false)
   const [schneider, setSchneider] = useState(false)
   const [schneiderAnnounced, setSchneiderAnnounced] = useState(false)
@@ -69,15 +70,15 @@ export default function GameForm({
   const [ramschAugen, setRamschAugen] = useState(0)
   const [isSpaltarsch, setIsSpaltarsch] = useState(false)
 
-  const isRamsch = isRamschType(gameType)
-  const isNull = isNullType(gameType)
+  const isRamsch = gameType ? isRamschType(gameType) : false
+  const isNull = gameType ? isNullType(gameType) : false
   const isSuitOrGrand = !isRamsch && !isNull
 
   const eligibleSoloists = players.filter((_, i) => i !== dealerIndex)
 
-  const previewValue = calculateGameValue({
+  const previewValue: ScoringResult = gameType ? calculateGameValue({
     game_type: gameType,
-    won,
+    won: won ?? false,
     buben_count: isSuitOrGrand ? bubenCount : null,
     buben_with: bubenWith,
     hand,
@@ -95,7 +96,7 @@ export default function GameForm({
     ramsch_augen: isRamsch ? ramschAugen : null,
     is_spaltarsch: isSpaltarsch,
     lost_doubling_count: 0,
-  })
+  }) : { value: 0, multiplier: 0 }
 
   const gameTypeCategories = [
     { label: 'Farbspiel', types: SUIT_GAME_TYPES as GameType[] },
@@ -105,6 +106,7 @@ export default function GameForm({
   ]
 
   function handleSubmit() {
+    if (!gameType) return
     if (isRamsch) {
       if (ramschDurchmarsch) {
         const winner = players.find((_, i) => i !== dealerIndex)
@@ -158,9 +160,9 @@ export default function GameForm({
       onSubmit({
         game_type: gameType,
         soloist_id: soloistId,
-        won,
-        buben_count: isSuitOrGrand ? bubenCount : 0,
-        buben_with: bubenWith,
+        won: won ?? false,
+        buben_count: isSuitOrGrand ? (bubenCount ?? 0) : 0,
+        buben_with: bubenWith ?? true,
         hand,
         schneider,
         schneider_announced: schneiderAnnounced,
@@ -179,23 +181,14 @@ export default function GameForm({
     }
   }
 
-  const canSubmit = isRamsch ? ramschDurchmarsch || ramschLoserId : soloistId
+  const canSubmit = isRamsch ? ramschDurchmarsch || ramschLoserId : (soloistId && won !== null && bubenCount !== null && bubenWith !== null)
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal game-form-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Neues Spiel</h2>
 
-        {isBockActive && (
-          <div className="info-banner info-banner-bock">
-            Bock ist aktiv — der Spielwert wird verdoppelt
-          </div>
-        )}
-        {ramschQueueActive && !isRamsch && (
-          <div className="info-banner info-banner-ramsch">
-            Ramsch-Queue ist aktiv — bei diesem Spiel muss Ramsch gespielt werden
-          </div>
-        )}
+
 
         <div className="form-section">
           <label className="form-section-label">Spielart</label>
@@ -209,8 +202,11 @@ export default function GameForm({
                       key={t}
                       className={`game-type-btn ${gameType === t ? 'selected' : ''}`}
                       onClick={() => {
-                        setGameType(t)
-                        setWon(true)
+                        setGameType(gameType === t ? null : t)
+                        if (!isRamschType(t)) {
+                          setBubenCount(null)
+                          setBubenWith(null)
+                        }
                         if (isRamschType(t)) {
                           setBubenCount(0)
                           setSchneider(false)
@@ -238,7 +234,7 @@ export default function GameForm({
                 <button
                   key={p.id}
                   className={`player-select-btn ${soloistId === p.id ? 'selected' : ''}`}
-                  onClick={() => setSoloistId(p.id)}
+                  onClick={() => setSoloistId(soloistId === p.id ? '' : p.id)}
                 >
                   {p.name}
                 </button>
@@ -251,10 +247,10 @@ export default function GameForm({
           <div className="form-section">
             <label className="form-section-label">Ergebnis</label>
             <div className="won-toggle">
-              <button className={won ? 'selected win' : ''} onClick={() => setWon(true)}>
+              <button className={won === true ? 'selected win' : ''} onClick={() => setWon(won === true ? null : true)}>
                 Gewonnen
               </button>
-              <button className={!won ? 'selected lose' : ''} onClick={() => setWon(false)}>
+              <button className={won === false ? 'selected lose' : ''} onClick={() => setWon(won === false ? null : false)}>
                 Verloren
               </button>
             </div>
@@ -289,7 +285,7 @@ export default function GameForm({
                     <button
                       key={p.id}
                       className={`player-select-btn ${ramschLoserId === p.id ? 'selected' : ''}`}
-                      onClick={() => setRamschLoserId(p.id)}
+                      onClick={() => setRamschLoserId(ramschLoserId === p.id ? '' : p.id)}
                     >
                       {p.name}
                     </button>
@@ -380,15 +376,15 @@ export default function GameForm({
               <label className="form-section-label">Buben (Spitzen)</label>
               <div className="buben-controls">
                 <div className="counter-buttons">
-                  <button onClick={() => setBubenCount(Math.max(0, bubenCount - 1))}>−</button>
-                  <span className="counter-value">{bubenCount}</span>
-                  <button onClick={() => setBubenCount(Math.min(4, bubenCount + 1))}>+</button>
+                  <button onClick={() => setBubenCount(Math.max(0, (bubenCount ?? 0) - 1))}>−</button>
+                  <span className="counter-value">{bubenCount ?? 0}</span>
+                  <button onClick={() => setBubenCount(Math.min(4, (bubenCount ?? 0) + 1))}>+</button>
                 </div>
                 <div className="buben-direction">
-                  <button className={bubenWith ? 'selected' : ''} onClick={() => setBubenWith(true)}>
+                  <button className={bubenWith === true ? 'selected' : ''} onClick={() => setBubenWith(bubenWith === true ? null : true)}>
                     Mit
                   </button>
-                  <button className={!bubenWith ? 'selected' : ''} onClick={() => setBubenWith(false)}>
+                  <button className={bubenWith === false ? 'selected' : ''} onClick={() => setBubenWith(bubenWith === false ? null : false)}>
                     Ohne
                   </button>
                 </div>

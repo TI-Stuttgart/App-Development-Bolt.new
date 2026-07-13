@@ -253,13 +253,37 @@ export default function SessionView({ sessionId, onBack }: Props) {
               <span>Geber: {currentDealer?.name}</span>
               <span>•</span>
               <span>Spiel {session.current_game_number + 1}</span>
-              {isBockActive && <span className="badge badge-bock">Bock</span>}
-              {isRamschQueued && <span className="badge badge-ramsch">Ramsch fällig</span>}
             </div>
           </div>
         </div>
         <button className="btn-primary" onClick={() => setShowGameForm(true)}>+ Spiel eintragen</button>
       </header>
+
+      <div className="status-queue-row">
+        <div className="statuszeile">
+          <span className={`status-label ${isBockActive ? 'status-bock' : isRamschQueued ? 'status-ramsch' : 'status-normal'}`}>
+            {isBockActive ? 'Bock' : isRamschQueued ? 'Ramsch' : 'Normal'}
+          </span>
+        </div>
+        <div className="warteschlange">
+          {(() => {
+            const pending = queue.filter(q => q.games_remaining > 0)
+            const items: { label: string; cls: string }[] = []
+            for (const q of pending) {
+              const letter = q.type === 'bock' ? 'B' : 'R'
+              const cls = q.type === 'bock' ? 'q-bock' : 'q-ramsch'
+              items.push({ label: `${letter}×${q.games_remaining}`, cls })
+            }
+            if (items.length === 0) items.push({ label: 'N', cls: 'q-normal' })
+            return items.map((item, i) => (
+              <span key={i} className="queue-item-wrap">
+                {i > 0 && <span className="queue-arrow">›</span>}
+                <span className={`queue-item ${item.cls}`}>{item.label}</span>
+              </span>
+            ))
+          })()}
+        </div>
+      </div>
 
       <div className="session-content">
         <div className="scoreboard-section">

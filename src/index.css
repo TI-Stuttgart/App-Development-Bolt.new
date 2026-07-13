@@ -293,6 +293,25 @@ h1, h2, h3 { line-height: 1.2; font-weight: 600; }
 .value-preview-amount { font-size: 28px; font-weight: 700; color: var(--color-primary-700); }
 .value-preview-detail { font-size: 12px; color: var(--color-neutral-400); margin-top: 4px; }
 
+/* Statuszeile + Warteschlange */
+.status-queue-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.statuszeile { padding: 6px 12px; border-radius: var(--radius-sm); background: var(--color-neutral-50); border: 1px solid var(--color-neutral-200); }
+.status-label { font-size: 14px; font-weight: 600; }
+.status-bock { color: #c2410c; }
+.status-ramsch { color: #b45309; }
+.status-normal { color: var(--color-neutral-500); }
+.warteschlange { padding: 4px 12px; font-size: 13px; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.queue-item-wrap { display: flex; align-items: center; gap: 0; }
+.queue-arrow { color: var(--color-neutral-400); margin: 0 4px; font-size: 12px; }
+.queue-item { font-weight: 700; font-size: 13px; }
+.q-bock { color: #c2410c; }
+.q-ramsch { color: #b45309; }
+.q-normal { color: var(--color-neutral-500); }
+
+.no-spinners::-webkit-inner-spin-button,
+.no-spinners::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.no-spinners { -moz-appearance: textfield; }
+
 .loading-state { display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--color-neutral-400); font-size: 16px; }
 .empty-state { text-align: center; padding: 48px 24px; color: var(--color-neutral-500); }
 .empty-state.small { padding: 24px; }

@@ -159,7 +159,6 @@ export default function Dashboard({ onOpenSession }: { onOpenSession: (id: strin
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Neue Sitzung</h2>
             <div className="form-field">
-              <label>Spieleranzahl</label>
               <div className="player-count-selector">
                 {[3, 4].map((n) => (
                   <button key={n} className={playerCount === n ? 'selected' : ''} onClick={() => setPlayerCount(n)}>
@@ -170,7 +169,6 @@ export default function Dashboard({ onOpenSession }: { onOpenSession: (id: strin
             </div>
             {playerNames.slice(0, playerCount).map((name, i) => (
               <div className="form-field" key={i}>
-                <label>Spieler {i + 1}</label>
                 <input
                   type="text"
                   value={name}
@@ -184,8 +182,17 @@ export default function Dashboard({ onOpenSession }: { onOpenSession: (id: strin
               </div>
             ))}
             <div className="form-field">
-              <label>Cent pro Punkt</label>
-              <input type="number" value={centPerPoint} onChange={(e) => setCentPerPoint(Number(e.target.value))} min={1} />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={centPerPoint || ''}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9]/g, '')
+                  setCentPerPoint(v === '' ? 0 : Number(v))
+                }}
+                placeholder="ct/Punkt"
+                className="no-spinners"
+              />
             </div>
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setShowNew(false)}>Abbrechen</button>
