@@ -274,7 +274,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
     const baseStages = (bubenCount ?? 0) + 1;
     const suitValue = SUIT_VALUES[gt] || 0;
-    const mitOffneText = bubenWith ? `mit${bubenCount}` : `ohne${4 - bubenCount!}`;
+    const mitOffneText = bubenWith ? `mit${bubenCount}` : `ohne${bubenCount!}`;
     let displayText = `${mitOffneText} spielt ${baseStages}`;
     let runningStages = baseStages;
     if (hand) { runningStages++; displayText += `, hand ${runningStages}`; }
@@ -960,11 +960,11 @@ function GameInputForm({
                 key={`ohne${n}`}
                 type="button"
                 onClick={() => {
-                  if (bubenWith === false && bubenCount === 4 - n) { setBubenWith(null); setBubenCount(null); }
-                  else { setBubenWith(false); setBubenCount(4 - n); }
+                  if (bubenWith === false && bubenCount === n) { setBubenWith(null); setBubenCount(null); }
+                  else { setBubenWith(false); setBubenCount(n); }
                 }}
                 className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                  !bubenWith && bubenCount === 4 - n
+                  !bubenWith && bubenCount === n
                     ? 'bg-amber-500 text-white'
                     : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
                 }`}
