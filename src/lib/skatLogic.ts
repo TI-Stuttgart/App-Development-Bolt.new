@@ -73,12 +73,14 @@ export function calculateFinalGameValue(
   baseValue: number,
   kontra: boolean,
   re: boolean,
-  isBock: boolean
+  isBock: boolean,
+  lost: boolean = false
 ): number {
   let value = baseValue;
   if (kontra) value *= 2;
   if (re) value *= 2;
   if (isBock) value *= 2;
+  if (lost && (kontra || re || isBock)) value *= 2;
   return value;
 }
 

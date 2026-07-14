@@ -304,7 +304,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       baseValue,
       kontra,
       re,
-      isBock || gameState.isBockRound || grandHandBock || isSpaltarschDoubled
+      isBock || gameState.isBockRound || grandHandBock || isSpaltarschDoubled,
+      gameResult === 'lost'
     );
 
     const baseStages = (bubenCount ?? 0) + 1;
@@ -324,6 +325,9 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     if (isSpaltarschDoubled) { runningValue *= 2; displayText += ` Spaltarsch ${runningValue}`; }
     if (kontra) { runningValue *= 2; displayText += ` Kontra ${runningValue}`; }
     if (re) { runningValue *= 2; displayText += ` Re ${runningValue}`; }
+    if (gameResult === 'lost' && (kontra || re || isBockDoubled || isSpaltarschDoubled)) {
+      runningValue *= 2; displayText += ` Verloren ${runningValue}`;
+    }
     const sign = gameResult === 'lost' ? '-' : '';
     return {
       value: finalValue,
