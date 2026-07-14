@@ -514,12 +514,12 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         ]);
       }
 
-      if (!isRamschGame(gt) && !isGrandHandDuringRamsch) {
+      if (!isRamschGame(gt)) {
         const baseValue = needsBuben(gt)
           ? calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced)
           : NULL_VALUES[gt] || 0;
 
-        if (triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re)) {
+        if (triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re, isRamschRound)) {
           const gamesForNewRound = grandHandBock
             ? getGamesPerRound(session.player_count) - 1
             : getGamesPerRound(session.player_count);
@@ -544,7 +544,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
           ).length;
           // Add 1 if we just inserted a new Bock round that's not yet reflected in `queue`
-          const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re) && !grandHandBock;
+          const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re, isRamschRound) && !grandHandBock;
           const totalBockRounds = queuedBockRounds + (justAddedBock ? 1 : 0);
           // Only suppress if there's a Ramsch AFTER all Bock rounds (priority <= min Bock priority)
           // Spaltarsch Ramsch is at high priority (before Bock) and should NOT suppress this

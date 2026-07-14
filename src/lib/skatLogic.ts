@@ -89,9 +89,10 @@ export function triggersBockRound(
   won: boolean,
   hand: boolean = false,
   kontra: boolean = false,
-  re: boolean = false
+  re: boolean = false,
+  isRamschRound: boolean = false
 ): boolean {
-  if (gameType === 'grand' && hand) return true;
+  if (gameType === 'grand' && hand && !isRamschRound) return true;
   if (gameType === 'revolution') return true;
   if (!won && kontra) return true;
   if (re) return true;
