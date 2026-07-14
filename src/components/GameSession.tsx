@@ -66,6 +66,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
   // Ramsch specific
   const [ramschSchiebenPlayers, setRamschSchiebenPlayers] = useState<Record<string, boolean>>({});
   const [ramschJungfrauPlayers, setRamschJungfrauPlayers] = useState<Record<string, boolean>>({});
+  const [ramschDurchmarschPlayers, setRamschDurchmarschPlayers] = useState<Record<string, boolean>>({});
   const [ramschPlayerPoints, setRamschPlayerPoints] = useState<Record<string, number>>({});
   const [ramschSkatPoints, setRamschSkatPoints] = useState(0);
 
@@ -235,9 +236,11 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
       const singleLoser = losers.length === 1 ? losers[0] : null;
 
-      // Durchmarsch: player has 0 points (all others have points, skat goes to them)
-      const dmPlayer = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
-      const isDM = !!dmPlayer && maxPts > 0;
+      // Durchmarsch: explicitly toggled, or player has 0 points (all others have points, skat goes to them)
+      const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
+      const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
+      const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
+      const isDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0);
 
       // Jungfrau: count per-player toggles
       const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
@@ -390,9 +393,11 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
         const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
 
-        // Durchmarsch: player with 0 points, or 2+ jungfrau players
-        const dmPlayer = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
-        ramschIsDM = (!!dmPlayer && maxPts > 0) || (jungfrauCount >= 2 && !!dmPlayer);
+        // Durchmarsch: explicitly toggled, or player with 0 points
+        const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
+        const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
+        const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
+        ramschIsDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0) || (jungfrauCount >= 2 && !!dmPlayer);
         let loserBase = ramschIsDM ? 120 : singleLoser ? maxPts + ramschSkatPoints : maxPts;
         let mult = 1;
         for (let i = 0; i < schiebenCount; i++) mult *= 2;
@@ -611,6 +616,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     setIsTischramsch(false);
     setRamschSchiebenPlayers({});
     setRamschJungfrauPlayers({});
+    setRamschDurchmarschPlayers({});
     setRamschPlayerPoints({});
     setRamschSkatPoints(0);
     setShowGameForm(false);
@@ -758,6 +764,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             setRamschSchiebenPlayers={setRamschSchiebenPlayers}
             ramschJungfrauPlayers={ramschJungfrauPlayers}
             setRamschJungfrauPlayers={setRamschJungfrauPlayers}
+            ramschDurchmarschPlayers={ramschDurchmarschPlayers}
+            setRamschDurchmarschPlayers={setRamschDurchmarschPlayers}
             ramschPlayerPoints={ramschPlayerPoints}
             setRamschPlayerPoints={setRamschPlayerPoints}
             ramschSkatPoints={ramschSkatPoints}
@@ -920,6 +928,8 @@ function GameInputForm({
   setRamschSchiebenPlayers,
   ramschJungfrauPlayers,
   setRamschJungfrauPlayers,
+  ramschDurchmarschPlayers,
+  setRamschDurchmarschPlayers,
   ramschPlayerPoints,
   setRamschPlayerPoints,
   ramschSkatPoints,
@@ -968,6 +978,8 @@ function GameInputForm({
   setRamschSchiebenPlayers: (v: Record<string, boolean>) => void;
   ramschJungfrauPlayers: Record<string, boolean>;
   setRamschJungfrauPlayers: (v: Record<string, boolean>) => void;
+  ramschDurchmarschPlayers: Record<string, boolean>;
+  setRamschDurchmarschPlayers: (v: Record<string, boolean>) => void;
   ramschPlayerPoints: Record<string, number>;
   setRamschPlayerPoints: (pts: Record<string, number>) => void;
   ramschSkatPoints: number;
@@ -1159,8 +1171,9 @@ function GameInputForm({
                 {activePlayers.map((p) => {
                   const isJungfrau = !!ramschJungfrauPlayers[p.id];
                   const hasSchieben = !!ramschSchiebenPlayers[p.id];
+                  const isDurchmarsch = !!ramschDurchmarschPlayers[p.id];
                   return (
-                    <div key={p.id} className="flex items-center gap-2">
+                    <div key={p.id} className="flex items-center gap-2 flex-wrap">
                       <span className="w-24 text-sm font-medium text-slate-300 truncate">{p.name}</span>
                       <button
                         type="button"
@@ -1183,6 +1196,17 @@ function GameInputForm({
                         }`}
                       >
                         Schieben
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRamschDurchmarschPlayers({ ...ramschDurchmarschPlayers, [p.id]: !isDurchmarsch })}
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                          isDurchmarsch
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                        }`}
+                      >
+                        Durchmarsch
                       </button>
                     </div>
                   );
@@ -1227,14 +1251,14 @@ function GameInputForm({
                         const n = Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
                         setRamschPlayerPoints({ ...ramschPlayerPoints, [p.id]: n });
                       }}
-                      className="w-24 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-24 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                     {isLoser && val > 0 && <span className="text-xs text-red-400 font-medium">Verlierer</span>}
                   </div>
                 );
               })}
               {/* Skat field with inline checkmark */}
-              <div className="flex items-center gap-3 border-t border-slate-700/50 pt-2">
+              <div className="flex items-center gap-3 pt-2">
                 <span className="w-24 text-sm font-medium text-slate-400">Skat</span>
                 <input
                   type="text"

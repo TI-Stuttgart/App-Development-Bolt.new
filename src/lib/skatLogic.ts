@@ -98,6 +98,7 @@ export function triggersBockRound(
   if (gameType === 'revolution') return true;
   if (!won && kontra) return true;
   if (re) return true;
+  if (gameType === 'grand' && hand && isRamschRound && baseValue >= 96) return true;
   if (!won) return false;
   if (baseValue >= 96) return true;
   return false;
