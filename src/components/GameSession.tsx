@@ -268,7 +268,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
     if (isNullGame(gt)) {
       let value = NULL_VALUES[gt] || 0;
-      const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound;
+      const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound;
       if (kontra) value *= 2;
       if (re) value *= 2;
       if (gameState.isBockRound || isBock || grandHandBock) value *= 2;
@@ -297,7 +297,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       schwarzAnnounced
     );
 
-    const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound;
+    const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound;
 
     const isSpaltarschDoubled = spaltarsch;
     const finalValue = calculateFinalGameValue(
