@@ -300,11 +300,12 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
     const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound;
 
+    const isSpaltarschDoubled = spaltarsch;
     const finalValue = calculateFinalGameValue(
       baseValue,
       kontra,
       re,
-      isBock || gameState.isBockRound || grandHandBock
+      isBock || gameState.isBockRound || grandHandBock || isSpaltarschDoubled
     );
 
     const baseStages = (bubenCount ?? 0) + 1;
@@ -321,6 +322,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     let runningValue = baseValue;
     const isBockDoubled = isBock || gameState.isBockRound || grandHandBock;
     if (isBockDoubled) { runningValue *= 2; displayText += ` Bock ${runningValue}`; }
+    if (isSpaltarschDoubled) { runningValue *= 2; displayText += ` Spaltarsch ${runningValue}`; }
     if (kontra) { runningValue *= 2; displayText += ` Kontra ${runningValue}`; }
     if (re) { runningValue *= 2; displayText += ` Re ${runningValue}`; }
     return {
