@@ -264,7 +264,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       if (gameState.isBockRound || isBock) mult *= 2;
       const finalVal = loserBase * mult;
       const loserNames = losers.map(p => p.name).join(' & ');
-      return { value: -finalVal, display: loserNames };
+      return { value: -finalVal, display: `Ramsch: ${loserNames} -${finalVal}` };
     }
 
     if (isNullGame(gt)) {
@@ -325,9 +325,10 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     if (isSpaltarschDoubled) { runningValue *= 2; displayText += ` Spaltarsch ${runningValue}`; }
     if (kontra) { runningValue *= 2; displayText += ` Kontra ${runningValue}`; }
     if (re) { runningValue *= 2; displayText += ` Re ${runningValue}`; }
+    const sign = gameResult === 'lost' ? '-' : '';
     return {
       value: finalValue,
-      display: displayText,
+      display: `${sign}${displayText}`,
     };
   };
 
@@ -401,11 +402,9 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         ramschLoserIdComputed = ramschIsDM ? dmPlayer!.id : (singleLoser?.id ?? null);
 
         if (ramschIsDM) {
-          scoreChanges.push({ player_id: dmPlayer!.id, change: finalVal * winners.length });
-          winners.forEach(p => scoreChanges.push({ player_id: p.id, change: -finalVal }));
+          scoreChanges.push({ player_id: dmPlayer!.id, change: finalVal });
         } else {
-          losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -finalVal * winners.length }));
-          winners.forEach(w => scoreChanges.push({ player_id: w.id, change: finalVal * losers.length }));
+          losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -finalVal }));
         }
         }
       } else {
@@ -1110,7 +1109,7 @@ function GameInputForm({
                     : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <Check className="w-4 h-4" /> Gewonnen
+                {gameResult === 'won' ? <Check className="w-4 h-4" /> : null} Gewonnen
               </button>
               <button
                 type="button"
@@ -1629,8 +1628,8 @@ function ExportSummary({
                 const isSoloist = !g.is_ramsch && g.soloist_id === p.id;
                 let val: number | null = null;
                 if (isSoloist) val = soloistChange;
-                else if (isRamschL) val = -g.calculated_value * (players.length - 1);
-                else if (isDM) val = g.calculated_value * (players.length - 1);
+                else if (isRamschL) val = -g.calculated_value;
+                else if (isDM) val = g.calculated_value;
                 return `<td style="text-align:right;color:${val === null ? '#94a3b8' : val >= 0 ? '#16a34a' : '#dc2626'}">${
                   val !== null ? (val > 0 ? '+' : '') + val : ''
                 }</td>`;
