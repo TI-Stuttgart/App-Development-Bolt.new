@@ -546,9 +546,18 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           // Add 1 if we just inserted a new Bock round that's not yet reflected in `queue`
           const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re) && !grandHandBock;
           const totalBockRounds = queuedBockRounds + (justAddedBock ? 1 : 0);
-          const hasRamschInQueue = queue.some(q => q.type === 'ramsch' && q.games_remaining > 0) || spaltarsch;
+          // Only suppress if there's a Ramsch AFTER all Bock rounds (priority <= min Bock priority)
+          // Spaltarsch Ramsch is at high priority (before Bock) and should NOT suppress this
+          const bockItems = queue.filter(q =>
+            q.type === 'bock' && q.games_remaining > 0 &&
+            !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
+          );
+          const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
+          const hasRamschAfterBock = queue.some(q =>
+            q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
+          );
 
-          if (totalBockRounds >= 2 && !hasRamschInQueue) {
+          if (totalBockRounds >= 2 && !hasRamschAfterBock) {
             await supabase.from('queue_items').insert({
               session_id: session.id,
               type: 'ramsch',
@@ -827,10 +836,13 @@ function QueueBanner({
 
     // Count Bock rounds currently in queue to check if Ramsch follows
     const queuedBockRounds = pendingItems.filter(item => item.type === 'bock').length;
-    const hasRamschQueued = pendingItems.some(item => item.type === 'ramsch');
+    // Only suppress if there's a Ramsch AFTER all Bock rounds (priority <= min Bock priority)
+    const bockItems = pendingItems.filter(item => item.type === 'bock');
+    const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
+    const hasRamschAfterBock = pendingItems.some(item => item.type === 'ramsch' && item.priority <= minBockPriority);
 
-    // If no Ramsch already queued and 2+ Bock rounds in queue, show Ramsch after current items
-    if (activeItem && !hasRamschQueued && queuedBockRounds >= 2) {
+    // If no Ramsch after Bock and 2+ Bock rounds in queue, show Ramsch after current items
+    if (activeItem && !hasRamschAfterBock && queuedBockRounds >= 2) {
       chain.push({ label: `R${gamesPerRound}`, color: 'text-red-400' });
     }
 
