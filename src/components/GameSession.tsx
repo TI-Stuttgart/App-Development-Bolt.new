@@ -514,7 +514,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         ]);
       }
 
-      if (!isRamschGame(gt)) {
+      if (!isRamschGame(gt) && !isGrandHandDuringRamsch) {
         const baseValue = needsBuben(gt)
           ? calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced)
           : NULL_VALUES[gt] || 0;
