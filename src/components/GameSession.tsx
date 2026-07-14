@@ -188,7 +188,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     if (!gameState.isRamschRound && gameType === 'ramsch') {
       setGameType('');
     }
-  }, [gameState.isRamschRound]);
+  }, [gameState.isRamschRound, gameType]);
 
   // Calculate preview value
   const calculatePreview = (): { value: number; display: string } => {
@@ -221,8 +221,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     if (isRamschGame(gt)) {
       // Grand Hand during Ramsch: counts as lost, no Bock generation
       if (gt === 'grand' && hand) {
-        let value = 24;
-        if (gameState.isBockRound || isBock) value *= 2;
+        const value = 24;
         return { value: -value, display: `Grand Hand ${value}` };
       }
 
@@ -264,7 +263,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       if (gameState.isBockRound || isBock) mult *= 2;
       const finalVal = loserBase * mult;
       const loserNames = losers.map(p => p.name).join(' & ');
-      return { value: -finalVal, display: `Ramsch: ${loserNames} -${finalVal}` };
+      return { value: -finalVal, display: `-${finalVal}` };
     }
 
     if (isNullGame(gt)) {
@@ -371,14 +370,12 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -paymentPerLoser }));
 
       } else if (isRamschGame(gt)) {
-        // Grand Hand during Ramsch: counts as lost, no Bock generation
+        // Grand Hand during Ramsch: counts as lost, no Bock doubling, no Bock generation
         if (gt === 'grand' && hand) {
-          let ghValue = 24;
-          if (gameIsBock) ghValue *= 2;
+          const ghValue = 24;
           calculatedValue = ghValue;
           ramschLoserIdComputed = soloistId;
-          scoreChanges.push({ player_id: soloistId!, change: -ghValue * (activePlayers.length - 1) });
-          activePlayers.filter(p => p.id !== soloistId).forEach(p => scoreChanges.push({ player_id: p.id, change: ghValue }));
+          scoreChanges.push({ player_id: soloistId!, change: -ghValue });
         } else {
         const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
         const maxPts = Math.max(...pts, 0);
