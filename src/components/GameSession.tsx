@@ -15,7 +15,6 @@ import {
 import {
   ArrowLeft,
   Plus,
-  Minus,
   Trophy,
   XCircle,
   Check,
@@ -65,8 +64,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
   const [spaltarsch, setSpaltarsch] = useState(false);
 
   // Ramsch specific
-  const [ramschSchieben, setRamschSchieben] = useState(0);
-  const [ramschJungfrau, setRamschJungfrau] = useState(false);
+  const [ramschSchiebenPlayers, setRamschSchiebenPlayers] = useState<Record<string, boolean>>({});
+  const [ramschJungfrauPlayers, setRamschJungfrauPlayers] = useState<Record<string, boolean>>({});
   const [ramschPlayerPoints, setRamschPlayerPoints] = useState<Record<string, number>>({});
   const [ramschSkatPoints, setRamschSkatPoints] = useState(0);
 
@@ -202,7 +201,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
       const loserTotal = maxPts + ramschSkatPoints;
       let mult = 2;
-      if (ramschJungfrau) mult *= 2;
+      if (Object.values(ramschJungfrauPlayers).some(Boolean)) mult *= 2;
       if (gameState.isBockRound || isBock) mult *= 2;
       const paymentPerLoser = loserTotal * mult;
 
@@ -210,6 +209,13 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     }
 
     if (isRamschGame(gt)) {
+      // Grand Hand during Ramsch: counts as lost, no Bock generation
+      if (gt === 'grand' && hand) {
+        let value = 24;
+        if (gameState.isBockRound || isBock) value *= 2;
+        return { value: -value, display: `Grand Hand ${value}` };
+      }
+
       const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
       const total = pts.reduce((s, v) => s + v, 0) + ramschSkatPoints;
       if (total !== 120) {
@@ -219,18 +225,36 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       const losers = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) === maxPts);
       const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
       const singleLoser = losers.length === 1 ? losers[0] : null;
-      const isDM = !!singleLoser && maxPts + ramschSkatPoints === 120 && winners.length === 0;
-      let loserBase = isDM ? 120 : singleLoser ? maxPts + ramschSkatPoints : maxPts;
+
+      // Durchmarsch: player has 0 points (all others have points, skat goes to them)
+      const dmPlayer = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
+      const isDM = !!dmPlayer && maxPts > 0;
+
+      // Jungfrau: count per-player toggles
+      const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
+      // 2 Jungfrau = Durchmarsch for player with 120 points (0 eye)
+      const isDMByJungfrau = jungfrauCount >= 2 && !!dmPlayer;
+
+      if (isDM || isDMByJungfrau) {
+        let dmValue = 120;
+        let mult = 1;
+        const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
+        for (let i = 0; i < schiebenCount; i++) mult *= 2;
+        if (jungfrauCount > 0) mult *= 2;
+        if (gameState.isBockRound || isBock) mult *= 2;
+        dmValue *= mult;
+        return { value: dmValue, display: `Durchmarsch ${dmPlayer!.name}` };
+      }
+
+      let loserBase = singleLoser ? maxPts + ramschSkatPoints : maxPts;
       let mult = 1;
-      for (let i = 0; i < ramschSchieben; i++) mult *= 2;
-      if (ramschJungfrau) mult *= 2;
+      const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
+      for (let i = 0; i < schiebenCount; i++) mult *= 2;
+      if (jungfrauCount > 0) mult *= 2;
       if (gameState.isBockRound || isBock) mult *= 2;
       const finalVal = loserBase * mult;
-      if (isDM) {
-        return { value: finalVal, display: `Durchmarsch ${singleLoser!.name}` };
-      }
       const loserNames = losers.map(p => p.name).join(' & ');
-      return { value: finalVal, display: loserNames };
+      return { value: -finalVal, display: loserNames };
     }
 
     if (isNullGame(gt)) {
@@ -308,9 +332,9 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       const isBockRound = gameState.isBockRound;
       const isRamschRound = gameState.isRamschRound;
 
-      const grandHandBock = isGrandHand(gt, hand) && !isBock && !isBockRound;
-      const gameIsBock = isBockRound || isBock || grandHandBock;
       const isGrandHandDuringRamsch = isGrandHand(gt, hand) && isRamschRound;
+      const grandHandBock = isGrandHand(gt, hand) && !isBock && !isBockRound && !isGrandHandDuringRamsch;
+      const gameIsBock = isBockRound || isBock || grandHandBock;
 
       let calculatedValue = preview.value;
       let ramschIsDM = false;
@@ -325,7 +349,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
         const loserTotal = maxPts + ramschSkatPoints;
         let mult = 2;
-        if (ramschJungfrau) mult *= 2;
+        if (Object.values(ramschJungfrauPlayers).some(Boolean)) mult *= 2;
         if (gameIsBock) mult *= 2;
         const paymentPerLoser = loserTotal * mult;
         calculatedValue = paymentPerLoser;
@@ -334,27 +358,43 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -paymentPerLoser }));
 
       } else if (isRamschGame(gt)) {
+        // Grand Hand during Ramsch: counts as lost, no Bock generation
+        if (gt === 'grand' && hand) {
+          let ghValue = 24;
+          if (gameIsBock) ghValue *= 2;
+          calculatedValue = ghValue;
+          ramschLoserIdComputed = soloistId;
+          scoreChanges.push({ player_id: soloistId!, change: -ghValue * (activePlayers.length - 1) });
+          activePlayers.filter(p => p.id !== soloistId).forEach(p => scoreChanges.push({ player_id: p.id, change: ghValue }));
+        } else {
         const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
         const maxPts = Math.max(...pts, 0);
         const losers = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) === maxPts);
         const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
         const singleLoser = losers.length === 1 ? losers[0] : null;
-        ramschIsDM = !!singleLoser && maxPts + ramschSkatPoints === 120 && winners.length === 0;
+
+        const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
+        const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
+
+        // Durchmarsch: player with 0 points, or 2+ jungfrau players
+        const dmPlayer = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
+        ramschIsDM = (!!dmPlayer && maxPts > 0) || (jungfrauCount >= 2 && !!dmPlayer);
         let loserBase = ramschIsDM ? 120 : singleLoser ? maxPts + ramschSkatPoints : maxPts;
         let mult = 1;
-        for (let i = 0; i < ramschSchieben; i++) mult *= 2;
-        if (ramschJungfrau) mult *= 2;
+        for (let i = 0; i < schiebenCount; i++) mult *= 2;
+        if (jungfrauCount > 0) mult *= 2;
         if (gameIsBock) mult *= 2;
         const finalVal = loserBase * mult;
         calculatedValue = finalVal;
-        ramschLoserIdComputed = singleLoser?.id ?? null;
+        ramschLoserIdComputed = ramschIsDM ? dmPlayer!.id : (singleLoser?.id ?? null);
 
         if (ramschIsDM) {
-          scoreChanges.push({ player_id: singleLoser!.id, change: finalVal * winners.length });
+          scoreChanges.push({ player_id: dmPlayer!.id, change: finalVal * winners.length });
           winners.forEach(p => scoreChanges.push({ player_id: p.id, change: -finalVal }));
         } else {
           losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -finalVal * winners.length }));
           winners.forEach(w => scoreChanges.push({ player_id: w.id, change: finalVal * losers.length }));
+        }
         }
       } else {
         if (soloistId) {
@@ -383,8 +423,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         is_bock: gameIsBock,
         is_ramsch: (isRamschRound && !isGrandHandDuringRamsch) || isRamschGame(gt),
         calculated_value: calculatedValue,
-        ramsch_schieben_count: isRamschGame(gt) ? ramschSchieben : 0,
-        ramsch_jungfrau: isRamschGame(gt) ? ramschJungfrau : false,
+        ramsch_schieben_count: isRamschGame(gt) ? activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length : 0,
+        ramsch_jungfrau: isRamschGame(gt) ? Object.values(ramschJungfrauPlayers).some(Boolean) : false,
         ramsch_durchmarsch: ramschIsDM,
         ramsch_loser_id: ramschLoserIdComputed,
         lost_doubling_count: gameResult === 'lost' ? (kontra ? 1 : 0) + (re ? 1 : 0) + (gameIsBock ? 1 : 0) : 0,
@@ -536,8 +576,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     setIsBock(false);
     setSpaltarsch(false);
     setIsTischramsch(false);
-    setRamschSchieben(0);
-    setRamschJungfrau(false);
+    setRamschSchiebenPlayers({});
+    setRamschJungfrauPlayers({});
     setRamschPlayerPoints({});
     setRamschSkatPoints(0);
     setShowGameForm(false);
@@ -681,10 +721,10 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             setIsBock={setIsBock}
             isTischramsch={isTischramsch}
             setIsTischramsch={setIsTischramsch}
-            ramschSchieben={ramschSchieben}
-            setRamschSchieben={setRamschSchieben}
-            ramschJungfrau={ramschJungfrau}
-            setRamschJungfrau={setRamschJungfrau}
+            ramschSchiebenPlayers={ramschSchiebenPlayers}
+            setRamschSchiebenPlayers={setRamschSchiebenPlayers}
+            ramschJungfrauPlayers={ramschJungfrauPlayers}
+            setRamschJungfrauPlayers={setRamschJungfrauPlayers}
             ramschPlayerPoints={ramschPlayerPoints}
             setRamschPlayerPoints={setRamschPlayerPoints}
             ramschSkatPoints={ramschSkatPoints}
@@ -850,10 +890,10 @@ function GameInputForm({
   setIsBock,
   isTischramsch,
   setIsTischramsch,
-  ramschSchieben,
-  setRamschSchieben,
-  ramschJungfrau,
-  setRamschJungfrau,
+  ramschSchiebenPlayers,
+  setRamschSchiebenPlayers,
+  ramschJungfrauPlayers,
+  setRamschJungfrauPlayers,
   ramschPlayerPoints,
   setRamschPlayerPoints,
   ramschSkatPoints,
@@ -898,10 +938,10 @@ function GameInputForm({
   setIsBock: (b: boolean) => void;
   isTischramsch: boolean;
   setIsTischramsch: (b: boolean) => void;
-  ramschSchieben: number;
-  setRamschSchieben: (n: number) => void;
-  ramschJungfrau: boolean;
-  setRamschJungfrau: (b: boolean) => void;
+  ramschSchiebenPlayers: Record<string, boolean>;
+  setRamschSchiebenPlayers: (v: Record<string, boolean>) => void;
+  ramschJungfrauPlayers: Record<string, boolean>;
+  setRamschJungfrauPlayers: (v: Record<string, boolean>) => void;
   ramschPlayerPoints: Record<string, number>;
   setRamschPlayerPoints: (pts: Record<string, number>) => void;
   ramschSkatPoints: number;
@@ -1087,21 +1127,60 @@ function GameInputForm({
               {gameType === 'tischramsch' ? 'Tischramsch' : 'Ramsch'}
             </label>
 
-            {/* Jungfrau - styled like point input row, directly above inputs */}
-            <div className="flex items-center gap-3">
-              <span className="w-24 text-sm font-medium text-slate-300">Jungfrau</span>
-              <button
-                type="button"
-                onClick={() => setRamschJungfrau(!ramschJungfrau)}
-                className={`w-24 px-3 py-2 rounded-lg text-center font-medium transition-all ${
-                  ramschJungfrau
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {ramschJungfrau ? 'Ja' : 'Nein'}
-              </button>
-            </div>
+            {/* Per-player Jungfrau + Schieben buttons (normal Ramsch only) */}
+            {gameType !== 'tischramsch' && (
+              <div className="space-y-2">
+                {activePlayers.map((p) => {
+                  const isJungfrau = !!ramschJungfrauPlayers[p.id];
+                  const hasSchieben = !!ramschSchiebenPlayers[p.id];
+                  return (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <span className="w-24 text-sm font-medium text-slate-300 truncate">{p.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setRamschJungfrauPlayers({ ...ramschJungfrauPlayers, [p.id]: !isJungfrau })}
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                          isJungfrau
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                        }`}
+                      >
+                        Jungfrau
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRamschSchiebenPlayers({ ...ramschSchiebenPlayers, [p.id]: !hasSchieben })}
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                          hasSchieben
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                        }`}
+                      >
+                        Schieben
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Tischramsch: single Jungfrau toggle */}
+            {gameType === 'tischramsch' && (
+              <div className="flex items-center gap-3">
+                <span className="w-24 text-sm font-medium text-slate-300">Jungfrau</span>
+                <button
+                  type="button"
+                  onClick={() => setRamschJungfrauPlayers({ ['_tischramsch']: !ramschJungfrauPlayers['_tischramsch'] })}
+                  className={`w-24 px-3 py-2 rounded-lg text-center font-medium transition-all ${
+                    ramschJungfrauPlayers['_tischramsch']
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {ramschJungfrauPlayers['_tischramsch'] ? 'Ja' : 'Nein'}
+                </button>
+              </div>
+            )}
 
             {/* Per-player point inputs */}
             <div className="space-y-2">
@@ -1145,20 +1224,6 @@ function GameInputForm({
                 })()}
               </div>
             </div>
-
-            {/* Geschoben - only for normal Ramsch, not Tischramsch */}
-            {gameType !== 'tischramsch' && (
-              <div className="flex items-center gap-4">
-                <span className="text-slate-400 text-sm">Geschoben:</span>
-                <button type="button" onClick={() => setRamschSchieben(Math.max(0, ramschSchieben - 1))} className="p-2 bg-slate-700 rounded-lg text-white">
-                  <Minus className="w-4 h-4" />
-                </button>
-                <span className="text-xl font-bold text-white w-8 text-center">{ramschSchieben}</span>
-                <button type="button" onClick={() => setRamschSchieben(ramschSchieben + 1)} className="p-2 bg-slate-700 rounded-lg text-white">
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-            )}
           </div>
         )}
 
