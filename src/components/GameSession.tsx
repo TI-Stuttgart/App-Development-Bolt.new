@@ -541,12 +541,15 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         // After 2 Bock rounds, add a Ramsch round (if not already queued)
         {
           const gamesPerRound = getGamesPerRound(session.player_count);
-          // Count Bock rounds: completed rounds (total_bock_games / gamesPerRound) + scheduled rounds in queue
-          const completedBockRounds = Math.floor(newBockCount / gamesPerRound);
-          const queuedBockRounds = queue.filter(q => q.type === 'bock' && q.games_remaining > 0).length;
+          // Count Bock rounds currently in queue (excluding active if being deleted)
+          const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
+          const queuedBockRounds = queue.filter(q =>
+            q.type === 'bock' && q.games_remaining > 0 &&
+            !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
+          ).length;
           // Add 1 if we just inserted a new Bock round that's not yet reflected in `queue`
           const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re) && !grandHandBock;
-          const totalBockRounds = completedBockRounds + queuedBockRounds + (justAddedBock ? 1 : 0);
+          const totalBockRounds = queuedBockRounds + (justAddedBock ? 1 : 0);
           const hasRamschInQueue = queue.some(q => q.type === 'ramsch' && q.games_remaining > 0) || spaltarsch;
 
           if (totalBockRounds >= 2 && !hasRamschInQueue) {
@@ -679,7 +682,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         <QueueBanner
           queue={queue}
           gameNumber={session.current_game_number}
-          totalBockGames={session.total_bock_games}
+
           playerCount={session.player_count}
         />
 
@@ -793,15 +796,12 @@ function calculateRamschValue(schieben: number, jungfrau: boolean, durchmarsch: 
 function QueueBanner({
   queue,
   gameNumber,
-  totalBockGames,
   playerCount
 }: {
   queue: QueueItem[];
   gameNumber: number;
-  totalBockGames: number;
   playerCount: number;
 }) {
-  const ramschThreshold = 2 * getGamesPerRound(playerCount);
   const gamesPerRound = getGamesPerRound(playerCount);
   const pendingItems = queue.filter(item => item.games_remaining > 0);
   const activeItem = pendingItems[0];
@@ -829,16 +829,13 @@ function QueueBanner({
       }
     }
 
-    if (queuedAfterCurrent.length === 0) {
-      const currentIsBock = activeItem?.type === 'bock';
-      const currentIsRamsch = activeItem?.type === 'ramsch';
+    // Count Bock rounds currently in queue to check if Ramsch follows
+    const queuedBockRounds = pendingItems.filter(item => item.type === 'bock').length;
+    const hasRamschQueued = pendingItems.some(item => item.type === 'ramsch');
 
-      if (currentIsBock) {
-        const bockCountAfter = totalBockGames + activeItem.games_remaining;
-        if (bockCountAfter >= ramschThreshold) {
-          chain.push({ label: `R${gamesPerRound}`, color: 'text-red-400' });
-        }
-      }
+    // If no Ramsch already queued and 2+ Bock rounds in queue, show Ramsch after current items
+    if (activeItem && !hasRamschQueued && queuedBockRounds >= 2) {
+      chain.push({ label: `R${gamesPerRound}`, color: 'text-red-400' });
     }
 
     // Always append N at the end (normal game after all B/R are done)

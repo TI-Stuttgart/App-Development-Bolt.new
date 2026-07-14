@@ -9,6 +9,7 @@ import {
   type GameType,
 } from './supabase'
 import { calculateGameValue, getGameLabel, isRamschType, isNullType } from './scoring'
+import { getGamesPerRound } from './lib/skatLogic'
 import GameForm, { type GameFormData } from './GameForm'
 
 type Props = { sessionId: string; onBack: () => void }
@@ -196,14 +197,15 @@ export default function SessionView({ sessionId, onBack }: Props) {
       }
     }
 
+    const gamesPerRound = getGamesPerRound(session.player_count)
     if (data.game_type === 'ramsch' && data.ramsch_loser_id) {
-      await supabase.from('queue_items').insert({ session_id: session.id, type: 'bock', games_remaining: 1, priority: 1 })
+      await supabase.from('queue_items').insert({ session_id: session.id, type: 'bock', games_remaining: gamesPerRound, priority: 1 })
     }
     if (isNullType(data.game_type) && !data.won) {
-      await supabase.from('queue_items').insert({ session_id: session.id, type: 'bock', games_remaining: 1, priority: 1 })
+      await supabase.from('queue_items').insert({ session_id: session.id, type: 'bock', games_remaining: gamesPerRound, priority: 1 })
     }
     if (!isRamsch && !data.won && !isNullType(data.game_type)) {
-      await supabase.from('queue_items').insert({ session_id: session.id, type: 'bock', games_remaining: 1, priority: 1 })
+      await supabase.from('queue_items').insert({ session_id: session.id, type: 'bock', games_remaining: gamesPerRound, priority: 1 })
     }
 
     const nextDealerIndex = (session.current_dealer_index + 1) % session.player_count
