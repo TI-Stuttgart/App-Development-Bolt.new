@@ -180,6 +180,16 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
   const gameState = getCurrentGameState();
 
+  // Auto-set gameType to 'ramsch' when a Ramsch round is active from the queue
+  useEffect(() => {
+    if (gameState.isRamschRound && !gameType) {
+      setGameType('ramsch');
+    }
+    if (!gameState.isRamschRound && gameType === 'ramsch') {
+      setGameType('');
+    }
+  }, [gameState.isRamschRound]);
+
   // Calculate preview value
   const calculatePreview = (): { value: number; display: string } => {
     if (!gameType) return { value: 0, display: 'Bitte Spieltyp wählen' };
@@ -816,16 +826,12 @@ function QueueBanner({
         const bockCountAfter = totalBockGames + activeItem.games_remaining;
         if (bockCountAfter >= ramschThreshold) {
           chain.push({ label: `R${gamesPerRound}`, color: 'text-red-400' });
-          chain.push({ label: 'N', color: 'text-slate-400' });
-        } else {
-          chain.push({ label: 'N', color: 'text-slate-400' });
         }
-      } else if (currentIsRamsch) {
-        chain.push({ label: 'N', color: 'text-slate-400' });
-      } else {
-        chain.push({ label: 'N', color: 'text-slate-400' });
       }
     }
+
+    // Always append N at the end (normal game after all B/R are done)
+    chain.push({ label: 'N', color: 'text-slate-400' });
 
     return chain;
   };
