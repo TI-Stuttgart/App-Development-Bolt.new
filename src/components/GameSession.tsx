@@ -536,13 +536,22 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           }
         }
 
+        // After 2 Bock rounds, add a Ramsch round (if not already queued)
         {
-          const ramschThreshold = 2 * getGamesPerRound(session.player_count);
-          if (newBockCount >= ramschThreshold && session.total_bock_games < ramschThreshold) {
+          const gamesPerRound = getGamesPerRound(session.player_count);
+          // Count Bock rounds: completed rounds (total_bock_games / gamesPerRound) + scheduled rounds in queue
+          const completedBockRounds = Math.floor(newBockCount / gamesPerRound);
+          const queuedBockRounds = queue.filter(q => q.type === 'bock' && q.games_remaining > 0).length;
+          // Add 1 if we just inserted a new Bock round that's not yet reflected in `queue`
+          const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re) && !grandHandBock;
+          const totalBockRounds = completedBockRounds + queuedBockRounds + (justAddedBock ? 1 : 0);
+          const hasRamschInQueue = queue.some(q => q.type === 'ramsch' && q.games_remaining > 0) || spaltarsch;
+
+          if (totalBockRounds >= 2 && !hasRamschInQueue) {
             await supabase.from('queue_items').insert({
               session_id: session.id,
               type: 'ramsch',
-              games_remaining: getGamesPerRound(session.player_count),
+              games_remaining: gamesPerRound,
               priority: 0,
             });
           }
