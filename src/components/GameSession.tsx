@@ -667,8 +667,11 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       }
 
       if (isGrandHandDuringRamsch) {
+        // Grand Hand during Ramsch: not in a Bockrunde, so it triggers 1 Bock round.
+        // Additionally, if base value >= 96, the "Spiel >= 96" rule also applies.
         const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
-        bockTriggerCount += countBockTriggers(gt, ghBaseValue, false, hand, kontra, re, isRamschRound);
+        bockTriggerCount += 1; // Grand Hand itself triggers Bock
+        if (ghBaseValue >= 96) bockTriggerCount += 1; // Spiel >= 96 rule
         newBockCount += bockTriggerCount;
       }
 
