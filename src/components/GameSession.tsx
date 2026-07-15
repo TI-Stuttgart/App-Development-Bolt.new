@@ -655,7 +655,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         }
       }
 
-      if (!isRamschGame(gt) && !spaltarsch) {
+      if (!isRamschGame(gt) && !spaltarsch && !isGrandHandDuringRamsch) {
         const baseValue = needsBuben(gt)
           ? calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced)
           : NULL_VALUES[gt] || 0;
@@ -1259,14 +1259,17 @@ function GameInputForm({
           </div>
         )}
 
-        {/* Kontra/Re left, Won/Lost right - same row */}
+        {/* Kontra / Re */}
+        {!isRamsch && (
+          <div className="flex gap-1.5">
+            <ToggleButton active={kontra} onClick={() => setKontra(!kontra)} label="Kontra" small disabled={!soloistId} />
+            <ToggleButton active={re} onClick={() => setRe(!re)} label="Re" small disabled={!kontra} />
+          </div>
+        )}
+
+        {/* Gewonnen / Verloren / Spaltarsch - row below Kontra/Re */}
         {!isRamsch && (
           <div className="flex items-center justify-between gap-4">
-            <div className="flex gap-1.5">
-              <ToggleButton active={kontra} onClick={() => setKontra(!kontra)} label="Kontra" small disabled={!soloistId} />
-              <ToggleButton active={re} onClick={() => setRe(!re)} label="Re" small disabled={!kontra} />
-              <ToggleButton active={spaltarsch} onClick={onSpaltarsch} label="Spaltarsch" small disabled={!soloistId} />
-            </div>
             <div className="flex gap-1.5">
               <button
                 type="button"
@@ -1290,6 +1293,7 @@ function GameInputForm({
               >
                 <XCircle className="w-4 h-4" /> Verloren
               </button>
+              <ToggleButton active={spaltarsch} onClick={onSpaltarsch} label="Spaltarsch" small disabled={!soloistId} />
             </div>
           </div>
         )}
