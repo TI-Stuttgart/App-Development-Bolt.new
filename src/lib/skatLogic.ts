@@ -97,23 +97,22 @@ export function triggersBockRound(
   return countBockTriggers(gameType, baseValue, won, hand, kontra, re, isRamschRound) > 0;
 }
 
-// Count how many independent Bock rounds a game triggers
+// Count how many independent Bock rounds a game triggers.
+// Grand Hand is NOT counted here — it is handled separately because the
+// triggering game itself counts as the first game of the Bock round.
 export function countBockTriggers(
   gameType: GameType,
   baseValue: number,
   won: boolean,
-  hand: boolean = false,
+  _hand: boolean = false,
   kontra: boolean = false,
   re: boolean = false,
-  isRamschRound: boolean = false
+  _isRamschRound: boolean = false
 ): number {
   let count = 0;
-  if (gameType === 'grand' && hand && !isRamschRound) count++;
-  if (gameType === 'revolution') count++;
+  if (won && baseValue >= 96) count++;
   if (!won && kontra) count++;
   if (re) count++;
-  if (gameType === 'grand' && hand && isRamschRound && baseValue >= 96) count++;
-  if (won && baseValue >= 96) count++;
   return count;
 }
 
