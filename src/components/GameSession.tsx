@@ -617,7 +617,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         : (session.current_dealer_index + 1) % session.player_count;
       let newBockCount = session.total_bock_games;
 
-      // Track completed regular Bock/Ramsch rounds for interleaving
+      // Track completed Bock/Ramsch rounds for interleaving.
+      // ALL Bock rounds count (including Spaltarsch Bock), but only regular Ramsch (priority 0) counts.
       let newRegularBockRounds = session.total_regular_bock_rounds || 0;
       let newRegularRamschRounds = session.total_regular_ramsch_rounds || 0;
 
@@ -631,13 +632,10 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (activeQueueItem.games_remaining <= 1) {
           await supabase.from('queue_items').delete().eq('id', activeQueueItem.id);
 
-          // Round completed: track regular rounds (priority 0 = regular, not Spaltarsch)
-          if (activeQueueItem.priority === 0) {
-            if (activeQueueItem.type === 'bock') {
-              newRegularBockRounds += 1;
-            } else if (activeQueueItem.type === 'ramsch') {
-              newRegularRamschRounds += 1;
-            }
+          if (activeQueueItem.type === 'bock') {
+            newRegularBockRounds += 1;
+          } else if (activeQueueItem.type === 'ramsch' && activeQueueItem.priority === 0) {
+            newRegularRamschRounds += 1;
           }
         }
 
@@ -647,6 +645,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       }
 
       // Spaltarsch: Ramsch + Bock immediately after this game (highest priority)
+      let spaltarschBockInserted = false;
       if (spaltarsch) {
         const maxPriority = queue.length > 0 ? Math.max(...queue.map(q => q.priority)) : 0;
         await supabase.from('queue_items').insert([
@@ -654,6 +653,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           { session_id: session.id, type: 'bock', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 1 },
         ]);
         newBockCount += 1;
+        spaltarschBockInserted = true;
       }
 
       // Collect all Bock triggers for this game
@@ -680,23 +680,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         newBockCount += bockTriggerCount;
       }
 
-      // Insert new Bock rounds at priority 0 (back of queue, before N).
-      // After every 2nd regular Bock round (completed + queued + new), insert a Ramsch.
+      // Insert new regular Bock rounds at priority 0 (back of queue, before N).
       if (bockTriggerCount > 0) {
-        // Count existing queued regular Bock/Ramsch rounds at priority 0 (excluding active being consumed)
-        const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
-        const queuedRegularBock = queue.filter(q =>
-          q.type === 'bock' && q.games_remaining > 0 && q.priority === 0 &&
-          !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
-        ).length;
-        const queuedRegularRamsch = queue.filter(q =>
-          q.type === 'ramsch' && q.games_remaining > 0 && q.priority === 0
-        ).length;
-
-        // Total regular Bock rounds = completed + queued + new ones being inserted
-        let runningTotal = newRegularBockRounds + queuedRegularBock;
-        let ramschPairsCovered = newRegularRamschRounds + queuedRegularRamsch;
-
         for (let i = 0; i < bockTriggerCount; i++) {
           const gamesForNewRound = (i === 0 && grandHandBock) ? firstBockGames : getGamesPerRound(session.player_count);
           if (gamesForNewRound > 0) {
@@ -707,17 +692,33 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
               priority: 0,
             });
           }
-          runningTotal++;
-          const neededRamsch = Math.floor(runningTotal / 2);
-          if (neededRamsch > ramschPairsCovered) {
-            await supabase.from('queue_items').insert({
-              session_id: session.id,
-              type: 'ramsch',
-              games_remaining: getGamesPerRound(session.player_count),
-              priority: 0,
-            });
-            ramschPairsCovered++;
-          }
+        }
+      }
+
+      // After all Bock insertions, check if a Ramsch is needed (every 2 Bock → 1 Ramsch).
+      // Count ALL Bock rounds (completed + queued + Spaltarsch + new regular).
+      const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
+      const allQueuedBock = queue.filter(q =>
+        q.type === 'bock' && q.games_remaining > 0 &&
+        !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
+      ).length + (spaltarschBockInserted ? 1 : 0) + bockTriggerCount;
+      const allQueuedRegularRamsch = queue.filter(q =>
+        q.type === 'ramsch' && q.games_remaining > 0 && q.priority === 0
+      ).length;
+
+      const totalBockRounds = newRegularBockRounds + allQueuedBock;
+      const totalRamschCovered = newRegularRamschRounds + allQueuedRegularRamsch;
+      const neededRamsch = Math.floor(totalBockRounds / 2);
+
+      if (neededRamsch > totalRamschCovered) {
+        const ramschToInsert = neededRamsch - totalRamschCovered;
+        for (let i = 0; i < ramschToInsert; i++) {
+          await supabase.from('queue_items').insert({
+            session_id: session.id,
+            type: 'ramsch',
+            games_remaining: getGamesPerRound(session.player_count),
+            priority: 0,
+          });
         }
       }
 
