@@ -295,16 +295,14 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
       const singleLoser = losers.length === 1 ? losers[0] : null;
 
-      const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
-      const dmPlayer = dmPlayerAuto;
-      const isDM = !!dmPlayer && maxPts > 0;
-
       // Jungfrau: count per-player toggles
       const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
-      // 2 Jungfrau = Durchmarsch for player with 120 points (0 eye)
-      const isDMByJungfrau = jungfrauCount >= 2 && !!dmPlayer;
+      // 2 Jungfrau = Durchmarsch for the player who took all tricks (maxPts)
+      const isDMByJungfrau = jungfrauCount >= 2;
+      const dmPlayer = isDMByJungfrau ? losers[0] : null;
+      const isDM = !!dmPlayer;
 
-      if (isDM || isDMByJungfrau) {
+      if (isDM) {
         let dmValue = 120;
         let mult = 1;
         const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
@@ -472,11 +470,11 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
         const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
 
-        // Durchmarsch: explicitly toggled, or player with 0 points
+        // Durchmarsch: explicitly toggled, or 2+ Jungfrau (player with maxPts took all tricks)
         const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
-        const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
-        const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
-        ramschIsDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0) || (jungfrauCount >= 2 && !!dmPlayer);
+        const isDMByJungfrau = jungfrauCount >= 2;
+        const dmPlayer = dmPlayerExplicit || (isDMByJungfrau ? losers[0] : null);
+        ramschIsDM = !!dmPlayer;
         let loserBase = ramschIsDM ? 120 : maxPts + ramschSkatPoints;
         let mult = 1;
         for (let i = 0; i < schiebenCount; i++) mult *= 2;
@@ -1295,13 +1293,6 @@ function GameInputForm({
               </button>
               <ToggleButton active={spaltarsch} onClick={onSpaltarsch} label="Spaltarsch" small disabled={!soloistId} />
             </div>
-          </div>
-        )}
-
-        {/* Bockspiel toggle (only outside Bock round, non-Ramsch) */}
-        {!gameState.isBockRound && !isRamsch && (
-          <div>
-            <ToggleButton active={isBock} onClick={() => setIsBock(!isBock)} label="Bockspiel" small />
           </div>
         )}
 
