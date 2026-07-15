@@ -80,7 +80,7 @@ export function calculateFinalGameValue(
   if (kontra) value *= 2;
   if (re) value *= 2;
   if (isBock) value *= 2;
-  if (lost && (kontra || re || isBock)) value *= 2;
+  if (lost) value *= 2;
   return value;
 }
 
@@ -94,14 +94,27 @@ export function triggersBockRound(
   re: boolean = false,
   isRamschRound: boolean = false
 ): boolean {
-  if (gameType === 'grand' && hand && !isRamschRound) return true;
-  if (gameType === 'revolution') return true;
-  if (!won && kontra) return true;
-  if (re) return true;
-  if (gameType === 'grand' && hand && isRamschRound && baseValue >= 96) return true;
-  if (!won) return false;
-  if (baseValue >= 96) return true;
-  return false;
+  return countBockTriggers(gameType, baseValue, won, hand, kontra, re, isRamschRound) > 0;
+}
+
+// Count how many independent Bock rounds a game triggers
+export function countBockTriggers(
+  gameType: GameType,
+  baseValue: number,
+  won: boolean,
+  hand: boolean = false,
+  kontra: boolean = false,
+  re: boolean = false,
+  isRamschRound: boolean = false
+): number {
+  let count = 0;
+  if (gameType === 'grand' && hand && !isRamschRound) count++;
+  if (gameType === 'revolution') count++;
+  if (!won && kontra) count++;
+  if (re) count++;
+  if (gameType === 'grand' && hand && isRamschRound && baseValue >= 96) count++;
+  if (won && baseValue >= 96) count++;
+  return count;
 }
 
 export function isGrandHand(gameType: GameType, hand: boolean): boolean {

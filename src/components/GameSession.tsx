@@ -7,6 +7,7 @@ import {
   isRamschGame,
   needsBuben,
   triggersBockRound,
+  countBockTriggers,
   isGrandHand,
   getGamesPerRound,
   SUIT_VALUES,
@@ -224,6 +225,23 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       }
       const maxPts = Math.max(...pts, 0);
       const losers = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) === maxPts);
+      const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
+
+      // Durchmarsch: explicitly toggled, or player with 0 points
+      const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
+      const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
+      const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
+      const hasJungfrau = Object.values(ramschJungfrauPlayers).some(Boolean);
+      const isDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0);
+
+      if (isDM) {
+        let dmValue = 120;
+        let mult = 2;
+        if (hasJungfrau) mult *= 2;
+        if (gameState.isBockRound || isBock) mult *= 2;
+        dmValue *= mult;
+        return { value: dmValue, display: `DM ${dmValue}` };
+      }
 
       if (losers.length === 0 || maxPts === 0) {
         return { value: 0, display: 'Kein Verlierer' };
@@ -246,8 +264,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (gameState.isBockRound) value *= 2;
         if (kontra) value *= 2;
         if (re) value *= 2;
-        // Grand Hand during Ramsch is always lost, so double if any kontra/re/bock
-        if (kontra || re || gameState.isBockRound) value *= 2;
+        // Grand Hand during Ramsch is always lost, so always double
+        value *= 2;
         const triggersBock = triggersBockRound(gt, ghBaseValue, false, hand, kontra, re, gameState.isRamschRound);
         const bockNote = triggersBock ? ' → Bock' : '';
         return { value: -value, display: `Grand Hand ${value}${bockNote}` };
@@ -314,7 +332,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       if (kontra) value *= 2;
       if (re) value *= 2;
       if (gameState.isBockRound || isBock || grandHandBock) value *= 2;
-      if (gameResult === 'lost' && (kontra || re || isBock || gameState.isBockRound || grandHandBock)) value *= 2;
+      if (gameResult === 'lost') value *= 2;
       const labels: Record<string, string> = {
         null: 'Null', null_hand: 'Null Hand', null_ouvert: 'Null Ouvert',
         null_ouvert_hand: 'Null Ouvert Hand', revolution: 'Revolution',
@@ -365,7 +383,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     if (isBockDoubled) { runningValue *= 2; displayText += ` Bock ${runningValue}`; }
     if (kontra) { runningValue *= 2; displayText += ` Kontra ${runningValue}`; }
     if (re) { runningValue *= 2; displayText += ` Re ${runningValue}`; }
-    if (gameResult === 'lost' && (kontra || re || isBockDoubled)) {
+    if (gameResult === 'lost') {
       runningValue *= 2; displayText += ` Verloren ${runningValue}`;
     }
     const sign = gameResult === 'lost' ? '-' : '';
@@ -402,16 +420,34 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
         const maxPts = Math.max(...pts, 0);
         const losers = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) === maxPts);
+        const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
 
-        const loserTotal = maxPts + ramschSkatPoints;
-        let mult = 2;
-        if (Object.values(ramschJungfrauPlayers).some(Boolean)) mult *= 2;
-        if (gameIsBock) mult *= 2;
-        const paymentPerLoser = loserTotal * mult;
-        calculatedValue = paymentPerLoser;
-        ramschLoserIdComputed = losers.length === 1 ? losers[0].id : null;
+        // Durchmarsch: explicitly toggled, or player with 0 points
+        const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
+        const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
+        const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
+        const hasJungfrau = Object.values(ramschJungfrauPlayers).some(Boolean);
+        ramschIsDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0);
 
-        losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -paymentPerLoser }));
+        if (ramschIsDM) {
+          let dmValue = 120;
+          let mult = 2;
+          if (hasJungfrau) mult *= 2;
+          if (gameIsBock) mult *= 2;
+          dmValue *= mult;
+          calculatedValue = dmValue;
+          ramschLoserIdComputed = dmPlayer!.id;
+          scoreChanges.push({ player_id: dmPlayer!.id, change: dmValue });
+        } else {
+          const loserTotal = maxPts + ramschSkatPoints;
+          let mult = 2;
+          if (Object.values(ramschJungfrauPlayers).some(Boolean)) mult *= 2;
+          if (gameIsBock) mult *= 2;
+          const paymentPerLoser = loserTotal * mult;
+          calculatedValue = paymentPerLoser;
+          ramschLoserIdComputed = losers.length === 1 ? losers[0].id : null;
+          losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -paymentPerLoser }));
+        }
 
       } else if (isRamschGame(gt)) {
         // Grand Hand during Ramsch: counts as lost
@@ -421,8 +457,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           if (gameIsBock) ghValue *= 2;
           if (kontra) ghValue *= 2;
           if (re) ghValue *= 2;
-          // Grand Hand during Ramsch is always lost, so double if any kontra/re/bock
-          if (kontra || re || gameIsBock) ghValue *= 2;
+          // Grand Hand during Ramsch is always lost, so always double
+          ghValue *= 2;
           calculatedValue = ghValue;
           ramschLoserIdComputed = soloistId;
           scoreChanges.push({ player_id: soloistId!, change: -ghValue });
@@ -588,7 +624,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       // Grand Hand during Ramsch with value >= 96 triggers a Bock round
       if (isGrandHandDuringRamsch) {
         const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
-        if (triggersBockRound(gt, ghBaseValue, false, hand, kontra, re, isRamschRound)) {
+        const ghBockTriggers = countBockTriggers(gt, ghBaseValue, false, hand, kontra, re, isRamschRound);
+        for (let i = 0; i < ghBockTriggers; i++) {
           const gamesForNewRound = getGamesPerRound(session.player_count);
           await supabase.from('queue_items').insert({
             session_id: session.id,
@@ -596,13 +633,16 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             games_remaining: gamesForNewRound,
             priority: 0,
           });
-          newBockCount += 1;
+        }
+        newBockCount += ghBockTriggers;
 
-          // After every 2 Bock rounds, add a Ramsch round (if not already queued)
+        // After every 2 Bock rounds, add a Ramsch round (if not already queued)
+        if (ghBockTriggers > 0) {
+          const gamesForNewRound = getGamesPerRound(session.player_count);
           const queuedBockRounds = queue.filter(q =>
             q.type === 'bock' && q.games_remaining > 0
           ).length;
-          const totalBockRounds = queuedBockRounds + 1;
+          const totalBockRounds = queuedBockRounds + ghBockTriggers;
           const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds);
           for (let i = 0; i < additionalRamsch; i++) {
             await supabase.from('queue_items').insert({
@@ -620,11 +660,14 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           ? calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced)
           : NULL_VALUES[gt] || 0;
 
-        if (triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re, isRamschRound)) {
-          const gamesForNewRound = grandHandBock
-            ? getGamesPerRound(session.player_count) - 1
-            : getGamesPerRound(session.player_count);
+        const bockTriggerCount = countBockTriggers(gt, baseValue, gameResult === 'won', hand, kontra, re, isRamschRound);
+        // Grand Hand as trigger: first Bock round is shortened by 1 (the triggering game counts)
+        const firstBockGames = grandHandBock
+          ? getGamesPerRound(session.player_count) - 1
+          : getGamesPerRound(session.player_count);
 
+        for (let i = 0; i < bockTriggerCount; i++) {
+          const gamesForNewRound = (i === 0 && grandHandBock) ? firstBockGames : getGamesPerRound(session.player_count);
           if (gamesForNewRound > 0) {
             await supabase.from('queue_items').insert({
               session_id: session.id,
@@ -635,18 +678,15 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           }
         }
 
-        // After 2 Bock rounds, add a Ramsch round (if not already queued)
+        // After every 2 Bock rounds, add Ramsch rounds (if not already queued)
         {
           const gamesPerRound = getGamesPerRound(session.player_count);
-          // Count Bock rounds currently in queue (excluding active if being deleted)
           const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
           const queuedBockRounds = queue.filter(q =>
             q.type === 'bock' && q.games_remaining > 0 &&
             !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
           ).length;
-          // Add 1 if we just inserted a new Bock round that's not yet reflected in `queue`
-          const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re, isRamschRound) && !grandHandBock;
-          const totalBockRounds = queuedBockRounds + (justAddedBock ? 1 : 0);
+          const totalBockRounds = queuedBockRounds + bockTriggerCount;
           const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds, activeBockBeingDeleted ? activeQueueItem?.id : undefined);
           for (let i = 0; i < additionalRamsch; i++) {
             await supabase.from('queue_items').insert({
@@ -1319,19 +1359,41 @@ function GameInputForm({
 
             {/* Tischramsch: single Jungfrau toggle */}
             {gameType === 'tischramsch' && (
-              <div className="flex items-center gap-3">
-                <span className="w-24 text-sm font-medium text-slate-300">Jungfrau</span>
-                <button
-                  type="button"
-                  onClick={() => setRamschJungfrauPlayers({ ['_tischramsch']: !ramschJungfrauPlayers['_tischramsch'] })}
-                  className={`w-24 px-3 py-2 rounded-lg text-center font-medium transition-all ${
-                    ramschJungfrauPlayers['_tischramsch']
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                  }`}
-                >
-                  {ramschJungfrauPlayers['_tischramsch'] ? 'Ja' : 'Nein'}
-                </button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="w-24 text-sm font-medium text-slate-300">Jungfrau</span>
+                  <button
+                    type="button"
+                    onClick={() => setRamschJungfrauPlayers({ ['_tischramsch']: !ramschJungfrauPlayers['_tischramsch'] })}
+                    className={`w-24 px-3 py-2 rounded-lg text-center font-medium transition-all ${
+                      ramschJungfrauPlayers['_tischramsch']
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {ramschJungfrauPlayers['_tischramsch'] ? 'Ja' : 'Nein'}
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-24 text-sm font-medium text-slate-300">Durchmarsch</span>
+                  {activePlayers.map(p => {
+                    const isDM = ramschDurchmarschPlayers[p.id];
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setRamschDurchmarschPlayers({ ...ramschDurchmarschPlayers, [p.id]: !isDM })}
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                          isDM
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                        }`}
+                      >
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -1825,14 +1887,15 @@ function RulesDownload() {
       ['3.1', 'Kontra', 'Verdoppelt den Spielwert', 'Manuell umschaltbar'],
       ['3.2', 'Re', 'Verdoppelt nochmal', 'Manuell umschaltbar'],
       ['3.3', 'Bock-Runde', 'Verdoppelt den Spielwert', 'Automatisch bei aktiver Bock-Runde'],
-      ['3.4', 'Verloren', 'Bei Verlust nochmal verdoppeln wenn Kontra/Re/Bock aktiv', 'Nur bei verlorenen Spielen'],
+      ['3.4', 'Verloren', 'Jedes verlorene Spiel wird immer verdoppelt', 'Unabhaengig von Kontra/Re/Bock'],
       ['4', 'Bock-Runde auslösen', '', ''],
       ['4.1', 'Grand Hand (normal)', 'Grand + Hand außerhalb Ramsch', 'Triggert Bock-Runde'],
       ['4.2', 'Revolution', 'Spieltyp Revolution', 'Triggert Bock-Runde'],
-      ['4.3', 'Kontra verloren', 'Spiel verloren + Kontra aktiv', 'Triggert Bock-Runde'],
-      ['4.4', 'Re', 'Re aktiv (unabhängig vom Ausgang)', 'Triggert Bock-Runde'],
-      ['4.5', 'Wert ≥ 96 gewonnen', 'Gewonnenes Spiel mit Basiswert ≥ 96', 'Triggert Bock-Runde'],
+      ['4.3', 'Kontra verloren', 'Spiel verloren + Kontra aktiv (1 Bock-Runde)', 'Triggert 1 Bock-Runde'],
+      ['4.4', 'Re', 'Re aktiv (unabhängig vom Ausgang, 1 Bock-Runde)', 'Triggert 1 Bock-Runde'],
+      ['4.5', 'Wert ≥ 96 gewonnen', 'Gewonnenes Spiel mit Basiswert ≥ 96 (1 Bock-Runde)', 'Triggert 1 Bock-Runde'],
       ['4.6', 'Grand Hand während Ramsch ≥ 96', 'Grand Hand während Ramsch mit Basiswert ≥ 96', 'Triggert Bock-Runde'],
+      ['4.7', 'Mehrere Trigger', 'Mehrere Trigger im selben Spiel erzeugen jeweils eine Bock-Runde', 'z.B. Kontra+Re = 2 Bock-Runden'],
       ['5', 'Bock-Runde (Ablauf)', '', ''],
       ['5.1', 'Länge', 'Anzahl Spiele = Spielerzahl', 'Pro Runde'],
       ['5.2', 'Grand Hand als Bock-Auslöser', 'Bock-Runde wird um 1 Spiel verkürzt', 'games_remaining = Spielerzahl − 1'],
@@ -1844,7 +1907,7 @@ function RulesDownload() {
       ['6.4', 'Schieben', 'Pro geschobenem Spieler: × 2', 'Multiplikator'],
       ['6.5', 'Jungfrau', 'Jungfrau aktiv: × 2', 'Multiplikator'],
       ['6.6', 'Bock während Ramsch', 'Aktive Bock-Runde oder manuelles Bock: × 2', 'Multiplikator'],
-      ['6.7', 'Durchmarsch', 'Spieler hat 0 Augen (alle anderen >0): Wert = 120 × Multiplikatoren', 'Spieler mit 0 Augen gewinnt'],
+      ['6.7', 'Durchmarsch', 'Spieler hat 0 Augen (alle anderen >0): Wert = 120 × Multiplikatoren. Gilt auch im Tischramsch', 'Spieler mit 0 Augen gewinnt'],
       ['6.8', 'Durchmarsch durch 2 Jungfrauen', '≥ 2 Jungfrauen + Spieler mit 0 Augen: Durchmarsch', 'Automatisch erkannt'],
       ['7', 'Grand Hand während Ramsch', '', ''],
       ['7.1', 'Auswahl', 'Grand + Hand während aktiver Ramsch-Runde', 'Spieltyp Grand, Hand aktiviert'],
