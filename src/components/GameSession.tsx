@@ -370,9 +370,11 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       runningValue *= 2; displayText += ` Verloren ${runningValue}`;
     }
     const sign = gameResult === 'lost' ? '-' : '';
+    const triggersBock = countBockTriggers(gt, baseValue, gameResult === 'won', hand, kontra, re, gameState.isRamschRound) > 0;
+    const bockNote = triggersBock ? ' → Bock' : '';
     return {
       value: finalValue,
-      display: `${sign}${displayText}`,
+      display: `${sign}${displayText}${bockNote}`,
     };
   };
 
