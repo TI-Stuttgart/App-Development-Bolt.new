@@ -25,6 +25,7 @@ import {
   RotateCcw,
   Target,
   Crown,
+  Pencil,
 } from 'lucide-react';
 import type { GameType } from '../lib/supabase';
 
@@ -74,6 +75,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
   const [ramschSkatPoints, setRamschSkatPoints] = useState(0);
 
   const [saving, setSaving] = useState(false);
+  const [editingGameId, setEditingGameId] = useState<string | null>(null);
   const [showAbrechnung, setShowAbrechnung] = useState(false);
 
   // Derived states
@@ -508,46 +510,106 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         is_spaltarsch: spaltarsch,
       };
 
-      const { data: insertedGame, error: gameError } = await supabase
-        .from('games')
-        .insert(newGame)
-        .select()
-        .single();
+      if (editingGameId) {
+        const { error: updateError } = await supabase
+          .from('games')
+          .update(newGame)
+          .eq('id', editingGameId);
 
-      if (gameError) throw gameError;
+        if (updateError) throw updateError;
 
-      await supabase.from('game_scores').insert(
-        scoreChanges.map(sc => ({
-          game_id: insertedGame.id,
-          player_id: sc.player_id,
-          score_change: Math.round(sc.change),
-        }))
-      );
+        await supabase.from('game_scores').delete().eq('game_id', editingGameId);
+        await supabase.from('game_opponents').delete().eq('game_id', editingGameId);
 
-      if (soloistId && !isRamschGame(gt)) {
-        await supabase.from('game_opponents').insert([
-          { game_id: insertedGame.id, player_id: soloistId, role: 'soloist' },
-          ...activePlayers.filter(p => p.id !== soloistId).map(p => ({
-            game_id: insertedGame.id,
-            player_id: p.id,
-            role: 'opponent' as const,
-          })),
-          ...players.filter(p => !activePlayers.includes(p)).map(p => ({
-            game_id: insertedGame.id,
-            player_id: p.id,
-            role: 'sitter' as const,
-          })),
-        ]);
-      }
+        await supabase.from('game_scores').insert(
+          scoreChanges.map(sc => ({
+            game_id: editingGameId,
+            player_id: sc.player_id,
+            score_change: Math.round(sc.change),
+          }))
+        );
 
-      for (const sc of scoreChanges) {
-        const player = players.find(p => p.id === sc.player_id);
-        if (player) {
+        if (soloistId && !isRamschGame(gt)) {
+          await supabase.from('game_opponents').insert([
+            { game_id: editingGameId, player_id: soloistId, role: 'soloist' },
+            ...activePlayers.filter(p => p.id !== soloistId).map(p => ({
+              game_id: editingGameId,
+              player_id: p.id,
+              role: 'opponent' as const,
+            })),
+            ...players.filter(p => !activePlayers.includes(p)).map(p => ({
+              game_id: editingGameId,
+              player_id: p.id,
+              role: 'sitter' as const,
+            })),
+          ]);
+        }
+
+        // Recalculate all player total_scores from all games
+        const { data: allScores } = await supabase
+          .from('game_scores')
+          .select('player_id, score_change')
+          .in('game_id', games.map(g => g.id));
+
+        const scoreMap: Record<string, number> = {};
+        for (const s of allScores || []) {
+          scoreMap[s.player_id] = (scoreMap[s.player_id] || 0) + s.score_change;
+        }
+        for (const p of players) {
           await supabase
             .from('session_players')
-            .update({ total_score: player.total_score + Math.round(sc.change) })
-            .eq('id', player.id);
+            .update({ total_score: scoreMap[p.id] || 0 })
+            .eq('id', p.id);
         }
+      } else {
+        const { data: insertedGame, error: gameError } = await supabase
+          .from('games')
+          .insert(newGame)
+          .select()
+          .single();
+
+        if (gameError) throw gameError;
+
+        await supabase.from('game_scores').insert(
+          scoreChanges.map(sc => ({
+            game_id: insertedGame.id,
+            player_id: sc.player_id,
+            score_change: Math.round(sc.change),
+          }))
+        );
+
+        if (soloistId && !isRamschGame(gt)) {
+          await supabase.from('game_opponents').insert([
+            { game_id: insertedGame.id, player_id: soloistId, role: 'soloist' },
+            ...activePlayers.filter(p => p.id !== soloistId).map(p => ({
+              game_id: insertedGame.id,
+              player_id: p.id,
+              role: 'opponent' as const,
+            })),
+            ...players.filter(p => !activePlayers.includes(p)).map(p => ({
+              game_id: insertedGame.id,
+              player_id: p.id,
+              role: 'sitter' as const,
+            })),
+          ]);
+        }
+
+        for (const sc of scoreChanges) {
+          const player = players.find(p => p.id === sc.player_id);
+          if (player) {
+            await supabase
+              .from('session_players')
+              .update({ total_score: player.total_score + Math.round(sc.change) })
+              .eq('id', player.id);
+          }
+        }
+      }
+
+      if (editingGameId) {
+        // Editing a saved game: only recalculate scores, don't touch queue/session state
+        resetForm();
+        loadGameData();
+        return;
       }
 
       const nextDealerIndex = isGrandHandDuringRamsch
@@ -736,6 +798,39 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     setRamschPlayerPoints({});
     setRamschSkatPoints(0);
     setShowGameForm(false);
+    setEditingGameId(null);
+  };
+
+  const fillFormFromGame = (game: Game) => {
+    setEditingGameId(game.id);
+    setGameType(game.game_type);
+    setGameResult(game.won ? 'won' : 'lost');
+    setSoloistId(game.soloist_id || '');
+    setBubenCount(game.buben_count);
+    setBubenWith(game.buben_with);
+    setHand(game.hand);
+    setSchneider(game.schneider);
+    setSchneiderAnnounced(game.schneider_announced);
+    setSchwarz(game.schwarz);
+    setSchwarzAnnounced(game.schwarz_announced);
+    setOuvert(game.ouvert);
+    setKontra(game.kontra);
+    setRe(game.re);
+    setIsBock(game.is_bock);
+    setSpaltarsch(game.is_spaltarsch);
+    setIsTischramsch(game.game_type === 'tischramsch');
+    setRamschSchiebenPlayers({});
+    setRamschJungfrauPlayers({});
+    setRamschDurchmarschPlayers({});
+    if (game.ramsch_jungfrau && game.ramsch_loser_id) {
+      setRamschJungfrauPlayers({ [game.ramsch_loser_id]: true });
+    }
+    if (game.ramsch_durchmarsch && game.soloist_id) {
+      setRamschDurchmarschPlayers({ [game.soloist_id]: true });
+    }
+    setRamschPlayerPoints({});
+    setRamschSkatPoints(0);
+    setShowGameForm(true);
   };
 
   // Handle Spaltarsch (60 points rule) - sets state; queue items inserted at save time
@@ -824,6 +919,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           currentDealer={currentDealer}
           activePlayers={activePlayers}
           playerCount={session.player_count}
+          onEditGame={fillFormFromGame}
         />
 
         {/* Add Game Button */}
@@ -892,6 +988,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             consecutiveGrandHands={session.consecutive_grand_hands || 0}
             preview={preview}
             saving={saving}
+            editingGameId={editingGameId}
             onSubmit={handleSubmitGame}
             onCancel={resetForm}
           />
@@ -1058,6 +1155,7 @@ function GameInputForm({
   consecutiveGrandHands,
   preview,
   saving,
+  editingGameId,
   onSubmit,
   onCancel,
 }: {
@@ -1109,6 +1207,7 @@ function GameInputForm({
   consecutiveGrandHands: number;
   preview: { value: number; display: string };
   saving: boolean;
+  editingGameId: string | null;
   onSubmit: () => void;
   onCancel: () => void;
 }) {
@@ -1120,7 +1219,7 @@ function GameInputForm({
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700/50 mb-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-white">Neues Spiel eintragen</h2>
+        <h2 className="text-xl font-semibold text-white">{editingGameId ? 'Spiel bearbeiten' : 'Neues Spiel eintragen'}</h2>
         <button onClick={onCancel} className="text-slate-400 hover:text-white">
           <XCircle className="w-6 h-6" />
         </button>
@@ -1411,7 +1510,7 @@ function GameInputForm({
                 Speichern...
               </span>
             ) : (
-              'Spiel speichern'
+              editingGameId ? 'Änderungen speichern' : 'Spiel speichern'
             )}
           </button>
         </div>
@@ -1493,12 +1592,14 @@ function SkatZettelTable({
   currentDealer,
   activePlayers,
   playerCount,
+  onEditGame,
 }: {
   games: (Game & { scores?: { player_id: string; score_change: number }[] })[];
   players: SessionPlayer[];
   currentDealer: SessionPlayer | null;
   activePlayers: SessionPlayer[];
   playerCount: number;
+  onEditGame: (game: Game) => void;
 }) {
   const getScore = (game: Game & { scores?: { player_id: string; score_change: number }[] }, playerId: string): number | null => {
     if (game.scores) {
@@ -1533,6 +1634,7 @@ function SkatZettelTable({
                   </th>
                 );
               })}
+              <th className="py-3 px-1"></th>
             </tr>
             {/* Running total row */}
             <tr className="bg-slate-700/40 border-b border-slate-600/50">
@@ -1543,12 +1645,13 @@ function SkatZettelTable({
                   {p.total_score > 0 ? '+' : ''}{p.total_score}
                 </td>
               ))}
+              <td className="py-2 px-1"></td>
             </tr>
           </thead>
           <tbody>
             {games.length === 0 ? (
               <tr>
-                <td colSpan={players.length + 2} className="py-8 text-center text-slate-500">
+                <td colSpan={players.length + 3} className="py-8 text-center text-slate-500">
                   Noch keine Spiele eingetragen
                 </td>
               </tr>
@@ -1577,6 +1680,16 @@ function SkatZettelTable({
                       </td>
                     );
                   })}
+                  <td className="py-1 px-1 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onEditGame(game)}
+                      className="p-1.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+                      title="Spiel bearbeiten"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
