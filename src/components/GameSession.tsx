@@ -245,7 +245,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (jungfrauCount > 0) mult *= 2;
         if (gameState.isBockRound || isBock) mult *= 2;
         dmValue *= mult;
-        return { value: dmValue, display: `Durchmarsch ${dmPlayerExplicit.name} (${dmValue})` };
+        return { value: dmValue, display: `${dmValue}` };
       }
 
       const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
@@ -275,7 +275,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (jungfrauCount > 0) mult *= 2;
         if (gameState.isBockRound || isBock) mult *= 2;
         dmValue *= mult;
-        return { value: dmValue, display: `Durchmarsch ${dmPlayer!.name} (${dmValue})` };
+        return { value: dmValue, display: `${dmValue}` };
       }
 
       let loserBase = singleLoser ? maxPts + ramschSkatPoints : maxPts;
@@ -538,13 +538,37 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         newBockCount += 1;
       }
 
-      // Spaltarsch: add Ramsch + Bock at front of queue (highest priority)
+      // Spaltarsch: add Ramsch + Bock as the next two rounds (highest priority)
       if (spaltarsch) {
         const maxPriority = queue.length > 0 ? Math.max(...queue.map(q => q.priority)) : 0;
         await supabase.from('queue_items').insert([
           { session_id: session.id, type: 'ramsch', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 2 },
           { session_id: session.id, type: 'bock', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 1 },
         ]);
+        newBockCount += 1;
+
+        // After 2 Bock rounds, add a Ramsch round (if not already queued)
+        const gamesForNewRound = getGamesPerRound(session.player_count);
+        const queuedBockRounds = queue.filter(q =>
+          q.type === 'bock' && q.games_remaining > 0
+        ).length;
+        const totalBockRounds = queuedBockRounds + 1;
+        const bockItems = queue.filter(q =>
+          q.type === 'bock' && q.games_remaining > 0
+        );
+        const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
+        const hasRamschAfterBock = queue.some(q =>
+          q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
+        );
+
+        if (totalBockRounds >= 2 && !hasRamschAfterBock) {
+          await supabase.from('queue_items').insert({
+            session_id: session.id,
+            type: 'ramsch',
+            games_remaining: gamesForNewRound,
+            priority: 0,
+          });
+        }
       }
 
       // Grand Hand during Ramsch with value >= 96 triggers a Bock round
@@ -1068,25 +1092,23 @@ function GameInputForm({
       </div>
 
       <div className="space-y-5">
-        {/* Player Selection (non-Ramsch) - no heading */}
-        {!isRamsch && (
-          <div className="flex flex-wrap gap-2">
-            {activePlayers.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSoloistId(soloistId === p.id ? '' : p.id)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  soloistId === p.id
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Player Selection - always visible */}
+        <div className="flex flex-wrap gap-2">
+          {activePlayers.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setSoloistId(soloistId === p.id ? '' : p.id)}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                soloistId === p.id
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
 
         {/* Buben Selection - single line: mit1/2/3/4 ohne1/2/3/4 - always visible */}
         <div className="flex flex-wrap gap-1.5">
@@ -1312,7 +1334,7 @@ function GameInputForm({
                         const n = Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
                         setRamschPlayerPoints({ ...ramschPlayerPoints, [p.id]: n });
                       }}
-                      className="w-24 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-24 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                     {isLoser && val > 0 && <span className="text-xs text-red-400 font-medium">Verlierer</span>}
                   </div>
