@@ -237,7 +237,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (jungfrauCount > 0) mult *= 2;
         if (gameState.isBockRound || isBock) mult *= 2;
         dmValue *= mult;
-        return { value: dmValue, display: `Durchmarsch ${dmPlayerExplicit.name}` };
+        return { value: dmValue, display: `Durchmarsch ${dmPlayerExplicit.name} (${dmValue})` };
       }
 
       const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
@@ -267,7 +267,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (jungfrauCount > 0) mult *= 2;
         if (gameState.isBockRound || isBock) mult *= 2;
         dmValue *= mult;
-        return { value: dmValue, display: `Durchmarsch ${dmPlayer!.name}` };
+        return { value: dmValue, display: `Durchmarsch ${dmPlayer!.name} (${dmValue})` };
       }
 
       let loserBase = singleLoser ? maxPts + ramschSkatPoints : maxPts;
@@ -1308,7 +1308,7 @@ function GameInputForm({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={saving || !gameType || (!isRamsch && (!soloistId || !gameResult)) || (isRamsch && activePlayers.reduce((s, p) => s + (ramschPlayerPoints[p.id] ?? 0), 0) + ramschSkatPoints !== 120)}
+            disabled={saving || !gameType || (!isRamsch && (!soloistId || !gameResult)) || (isRamsch && !activePlayers.some(p => ramschDurchmarschPlayers[p.id]) && activePlayers.reduce((s, p) => s + (ramschPlayerPoints[p.id] ?? 0), 0) + ramschSkatPoints !== 120)}
             className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-lg hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {saving ? (
