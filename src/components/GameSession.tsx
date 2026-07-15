@@ -314,12 +314,11 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
     const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound;
 
-    const isSpaltarschDoubled = spaltarsch;
     const finalValue = calculateFinalGameValue(
       baseValue,
       kontra,
       re,
-      isBock || gameState.isBockRound || grandHandBock || isSpaltarschDoubled,
+      isBock || gameState.isBockRound || grandHandBock,
       gameResult === 'lost'
     );
 
@@ -337,10 +336,9 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     let runningValue = baseValue;
     const isBockDoubled = isBock || gameState.isBockRound || grandHandBock;
     if (isBockDoubled) { runningValue *= 2; displayText += ` Bock ${runningValue}`; }
-    if (isSpaltarschDoubled) { runningValue *= 2; displayText += ` Spaltarsch ${runningValue}`; }
     if (kontra) { runningValue *= 2; displayText += ` Kontra ${runningValue}`; }
     if (re) { runningValue *= 2; displayText += ` Re ${runningValue}`; }
-    if (gameResult === 'lost' && (kontra || re || isBockDoubled || isSpaltarschDoubled)) {
+    if (gameResult === 'lost' && (kontra || re || isBockDoubled)) {
       runningValue *= 2; displayText += ` Verloren ${runningValue}`;
     }
     const sign = gameResult === 'lost' ? '-' : '';
