@@ -1274,24 +1274,24 @@ function GameInputForm({
               <button
                 type="button"
                 onClick={() => setGameResult(gameResult === 'won' ? '' : 'won')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                   gameResult === 'won'
                     ? 'bg-green-500 text-white'
                     : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {gameResult === 'won' ? <Check className="w-4 h-4" /> : null} Gewonnen
+                Gewonnen
               </button>
               <button
                 type="button"
                 onClick={() => setGameResult(gameResult === 'lost' ? '' : 'lost')}
-                className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
                   gameResult === 'lost'
                     ? 'bg-red-500 text-white'
                     : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <XCircle className="w-4 h-4" /> Verloren
+                Verloren
               </button>
               <ToggleButton active={spaltarsch} onClick={onSpaltarsch} label="Spaltarsch" small disabled={!soloistId} />
             </div>
@@ -1312,94 +1312,52 @@ function GameInputForm({
               {gameType === 'tischramsch' ? 'Tischramsch' : 'Ramsch'}
             </label>
 
-            {/* Per-player Jungfrau + Schieben buttons (normal Ramsch only) */}
-            {gameType !== 'tischramsch' && (
-              <div className="space-y-2">
-                {activePlayers.map((p) => {
-                  const isJungfrau = !!ramschJungfrauPlayers[p.id];
-                  const hasSchieben = !!ramschSchiebenPlayers[p.id];
-                  const isDurchmarsch = !!ramschDurchmarschPlayers[p.id];
-                  return (
-                    <div key={p.id} className="flex items-center gap-2 flex-wrap">
-                      <span className="w-24 text-sm font-medium text-slate-300 truncate">{p.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => setRamschJungfrauPlayers({ ...ramschJungfrauPlayers, [p.id]: !isJungfrau })}
-                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                          isJungfrau
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                        }`}
-                      >
-                        Jungfrau
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRamschSchiebenPlayers({ ...ramschSchiebenPlayers, [p.id]: !hasSchieben })}
-                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                          hasSchieben
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                        }`}
-                      >
-                        Schieben
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRamschDurchmarschPlayers({ ...ramschDurchmarschPlayers, [p.id]: !isDurchmarsch })}
-                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                          isDurchmarsch
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                        }`}
-                      >
-                        Durchmarsch
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Tischramsch: single Jungfrau toggle */}
-            {gameType === 'tischramsch' && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <span className="w-24 text-sm font-medium text-slate-300">Jungfrau</span>
-                  <button
-                    type="button"
-                    onClick={() => setRamschJungfrauPlayers({ ['_tischramsch']: !ramschJungfrauPlayers['_tischramsch'] })}
-                    className={`w-24 px-3 py-2 rounded-lg text-center font-medium transition-all ${
-                      ramschJungfrauPlayers['_tischramsch']
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                    }`}
-                  >
-                    {ramschJungfrauPlayers['_tischramsch'] ? 'Ja' : 'Nein'}
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-24 text-sm font-medium text-slate-300">Durchmarsch</span>
-                  {activePlayers.map(p => {
-                    const isDM = ramschDurchmarschPlayers[p.id];
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setRamschDurchmarschPlayers({ ...ramschDurchmarschPlayers, [p.id]: !isDM })}
-                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                          isDM
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
-                        }`}
-                      >
-                        {p.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* Per-player Jungfrau + Schieben + Durchmarsch buttons (Ramsch & Tischramsch) */}
+            <div className="space-y-2">
+              {activePlayers.map((p) => {
+                const isJungfrau = !!ramschJungfrauPlayers[p.id];
+                const hasSchieben = !!ramschSchiebenPlayers[p.id];
+                const isDurchmarsch = !!ramschDurchmarschPlayers[p.id];
+                return (
+                  <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                    <span className="w-24 text-sm font-medium text-slate-300 truncate">{p.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRamschJungfrauPlayers({ ...ramschJungfrauPlayers, [p.id]: !isJungfrau })}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                        isJungfrau
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      Jungfrau
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRamschSchiebenPlayers({ ...ramschSchiebenPlayers, [p.id]: !hasSchieben })}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                        hasSchieben
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      Schieben
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRamschDurchmarschPlayers({ ...ramschDurchmarschPlayers, [p.id]: !isDurchmarsch })}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                        isDurchmarsch
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      Durchmarsch
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Per-player point inputs */}
             <div className="space-y-2">
