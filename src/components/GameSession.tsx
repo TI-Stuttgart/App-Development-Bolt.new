@@ -226,6 +226,20 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         return { value: -value, display: `Grand Hand ${value}` };
       }
 
+      // Durchmarsch: explicitly toggled, or player has 0 points (all others have points, skat goes to them)
+      const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
+      if (dmPlayerExplicit) {
+        let dmValue = 120;
+        let mult = 1;
+        const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
+        for (let i = 0; i < schiebenCount; i++) mult *= 2;
+        const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
+        if (jungfrauCount > 0) mult *= 2;
+        if (gameState.isBockRound || isBock) mult *= 2;
+        dmValue *= mult;
+        return { value: dmValue, display: `Durchmarsch ${dmPlayerExplicit.name}` };
+      }
+
       const pts = activePlayers.map(p => ramschPlayerPoints[p.id] ?? 0);
       const total = pts.reduce((s, v) => s + v, 0) + ramschSkatPoints;
       if (total !== 120) {
@@ -236,11 +250,9 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       const winners = activePlayers.filter(p => (ramschPlayerPoints[p.id] ?? 0) < maxPts);
       const singleLoser = losers.length === 1 ? losers[0] : null;
 
-      // Durchmarsch: explicitly toggled, or player has 0 points (all others have points, skat goes to them)
-      const dmPlayerExplicit = activePlayers.find(p => ramschDurchmarschPlayers[p.id]);
       const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
-      const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
-      const isDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0);
+      const dmPlayer = dmPlayerAuto;
+      const isDM = !!dmPlayer && maxPts > 0;
 
       // Jungfrau: count per-player toggles
       const jungfrauCount = activePlayers.filter(p => ramschJungfrauPlayers[p.id]).length;
