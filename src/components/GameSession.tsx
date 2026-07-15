@@ -617,6 +617,10 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         : (session.current_dealer_index + 1) % session.player_count;
       let newBockCount = session.total_bock_games;
 
+      // Track completed regular Bock/Ramsch rounds for interleaving
+      let newRegularBockRounds = session.total_regular_bock_rounds || 0;
+      let newRegularRamschRounds = session.total_regular_ramsch_rounds || 0;
+
       // Decrement/delete the active queue item (the round being consumed by this game)
       if (activeQueueItem && !isGrandHandDuringRamsch) {
         await supabase
@@ -626,6 +630,15 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
         if (activeQueueItem.games_remaining <= 1) {
           await supabase.from('queue_items').delete().eq('id', activeQueueItem.id);
+
+          // Round completed: track regular rounds (priority 0 = regular, not Spaltarsch)
+          if (activeQueueItem.priority === 0) {
+            if (activeQueueItem.type === 'bock') {
+              newRegularBockRounds += 1;
+            } else if (activeQueueItem.type === 'ramsch') {
+              newRegularRamschRounds += 1;
+            }
+          }
         }
 
         if (activeQueueItem.type === 'bock') {
@@ -648,15 +661,12 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       let firstBockGames = getGamesPerRound(session.player_count);
 
       if (grandHandBock) {
-        // Grand Hand not in Bock/Ramsch: triggers 1 Bock round, and this game
-        // counts as the first game of that round (so round is shortened by 1)
         bockTriggerCount += 1;
         firstBockGames = getGamesPerRound(session.player_count) - 1;
         newBockCount += 1;
       }
 
       if (isGrandHandDuringRamsch) {
-        // Grand Hand during Ramsch: triggers 1 Bock round (normal length)
         const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
         bockTriggerCount += countBockTriggers(gt, ghBaseValue, false, hand, kontra, re, isRamschRound);
         newBockCount += bockTriggerCount;
@@ -671,21 +681,21 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       }
 
       // Insert new Bock rounds at priority 0 (back of queue, before N).
-      // After every 2nd Bock round (total, including completed ones), insert a Ramsch.
+      // After every 2nd regular Bock round (completed + queued + new), insert a Ramsch.
       if (bockTriggerCount > 0) {
-        // Count existing queued Bock rounds at priority 0 (excluding the active one being consumed)
+        // Count existing queued regular Bock/Ramsch rounds at priority 0 (excluding active being consumed)
         const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
-        const existingBockRounds = queue.filter(q =>
+        const queuedRegularBock = queue.filter(q =>
           q.type === 'bock' && q.games_remaining > 0 && q.priority === 0 &&
           !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
         ).length;
-        // Count existing queued Ramsch rounds at priority 0 (non-Spaltarsch)
-        const existingRamschRounds = queue.filter(q =>
+        const queuedRegularRamsch = queue.filter(q =>
           q.type === 'ramsch' && q.games_remaining > 0 && q.priority === 0
         ).length;
 
-        let runningTotal = existingBockRounds;
-        let ramschPairsCovered = existingRamschRounds;
+        // Total regular Bock rounds = completed + queued + new ones being inserted
+        let runningTotal = newRegularBockRounds + queuedRegularBock;
+        let ramschPairsCovered = newRegularRamschRounds + queuedRegularRamsch;
 
         for (let i = 0; i < bockTriggerCount; i++) {
           const gamesForNewRound = (i === 0 && grandHandBock) ? firstBockGames : getGamesPerRound(session.player_count);
@@ -727,6 +737,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           current_dealer_index: nextDealerIndex,
           current_game_number: gameNumber,
           total_bock_games: newBockCount,
+          total_regular_bock_rounds: newRegularBockRounds,
+          total_regular_ramsch_rounds: newRegularRamschRounds,
           consecutive_grand_hands: newConsecutiveGrandHands,
         })
         .eq('id', session.id);

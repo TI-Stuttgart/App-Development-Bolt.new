@@ -18,6 +18,8 @@ export type Session = {
   current_dealer_index: number;
   current_game_number: number;
   total_bock_games: number;
+  total_regular_bock_rounds: number;
+  total_regular_ramsch_rounds: number;
   consecutive_grand_hands: number;
   is_active: boolean;
   created_at: string;
