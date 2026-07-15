@@ -568,11 +568,13 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
         // After every 2 Bock rounds, add a Ramsch round (if not already queued)
         const gamesForNewRound = getGamesPerRound(session.player_count);
+        const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
         const queuedBockRounds = queue.filter(q =>
-          q.type === 'bock' && q.games_remaining > 0
+          q.type === 'bock' && q.games_remaining > 0 &&
+          !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
         ).length;
         const totalBockRounds = queuedBockRounds + 1;
-        const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds);
+        const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds, activeBockBeingDeleted ? activeQueueItem?.id : undefined);
         for (let i = 0; i < additionalRamsch; i++) {
           await supabase.from('queue_items').insert({
             session_id: session.id,
@@ -613,7 +615,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         }
       }
 
-      if (!isRamschGame(gt)) {
+      if (!isRamschGame(gt) && !spaltarsch) {
         const baseValue = needsBuben(gt)
           ? calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced)
           : NULL_VALUES[gt] || 0;
