@@ -220,10 +220,18 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
     }
 
     if (isRamschGame(gt)) {
-      // Grand Hand during Ramsch: counts as lost, no Bock generation
+      // Grand Hand during Ramsch: counts as lost
       if (gt === 'grand' && hand) {
-        const value = 24;
-        return { value: -value, display: `Grand Hand ${value}` };
+        const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
+        let value = ghBaseValue;
+        if (gameState.isBockRound) value *= 2;
+        if (kontra) value *= 2;
+        if (re) value *= 2;
+        // Grand Hand during Ramsch is always lost, so double if any kontra/re/bock
+        if (kontra || re || gameState.isBockRound) value *= 2;
+        const triggersBock = triggersBockRound(gt, ghBaseValue, false, hand, kontra, re, gameState.isRamschRound);
+        const bockNote = triggersBock ? ' → Bock' : '';
+        return { value: -value, display: `Grand Hand ${value}${bockNote}` };
       }
 
       // Durchmarsch: explicitly toggled, or player has 0 points (all others have points, skat goes to them)
@@ -387,9 +395,15 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         losers.forEach(l => scoreChanges.push({ player_id: l.id, change: -paymentPerLoser }));
 
       } else if (isRamschGame(gt)) {
-        // Grand Hand during Ramsch: counts as lost, no Bock doubling, no Bock generation
+        // Grand Hand during Ramsch: counts as lost
         if (gt === 'grand' && hand) {
-          const ghValue = 24;
+          const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
+          let ghValue = ghBaseValue;
+          if (gameIsBock) ghValue *= 2;
+          if (kontra) ghValue *= 2;
+          if (re) ghValue *= 2;
+          // Grand Hand during Ramsch is always lost, so double if any kontra/re/bock
+          if (kontra || re || gameIsBock) ghValue *= 2;
           calculatedValue = ghValue;
           ramschLoserIdComputed = soloistId;
           scoreChanges.push({ player_id: soloistId!, change: -ghValue });
@@ -531,6 +545,43 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           { session_id: session.id, type: 'ramsch', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 2 },
           { session_id: session.id, type: 'bock', games_remaining: getGamesPerRound(session.player_count), priority: maxPriority + 1 },
         ]);
+      }
+
+      // Grand Hand during Ramsch with value >= 96 triggers a Bock round
+      if (isGrandHandDuringRamsch) {
+        const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
+        if (triggersBockRound(gt, ghBaseValue, false, hand, kontra, re, isRamschRound)) {
+          const gamesForNewRound = getGamesPerRound(session.player_count);
+          await supabase.from('queue_items').insert({
+            session_id: session.id,
+            type: 'bock',
+            games_remaining: gamesForNewRound,
+            priority: 0,
+          });
+          newBockCount += 1;
+
+          // After 2 Bock rounds, add a Ramsch round (if not already queued)
+          const queuedBockRounds = queue.filter(q =>
+            q.type === 'bock' && q.games_remaining > 0
+          ).length;
+          const totalBockRounds = queuedBockRounds + 1;
+          const bockItems = queue.filter(q =>
+            q.type === 'bock' && q.games_remaining > 0
+          );
+          const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
+          const hasRamschAfterBock = queue.some(q =>
+            q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
+          );
+
+          if (totalBockRounds >= 2 && !hasRamschAfterBock) {
+            await supabase.from('queue_items').insert({
+              session_id: session.id,
+              type: 'ramsch',
+              games_remaining: gamesForNewRound,
+              priority: 0,
+            });
+          }
+        }
       }
 
       if (!isRamschGame(gt)) {
