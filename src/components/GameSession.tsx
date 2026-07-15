@@ -251,7 +251,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         if (re) value *= 2;
         // Grand Hand during Ramsch is always lost, so always double
         value *= 2;
-        const triggersBock = triggersBockRound(gt, ghBaseValue, false, hand, kontra, re, gameState.isRamschRound) || isGrandHand(gt, hand);
+        const triggersBock = ghBaseValue >= 96;
         const bockNote = triggersBock ? ' → Bock' : '';
         return { value: -value, display: `Grand Hand ${value}${bockNote}` };
       }
@@ -340,7 +340,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       schwarzAnnounced
     );
 
-    const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound;
+    const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound && baseValue >= 96;
 
     const finalValue = calculateFinalGameValue(
       baseValue,
@@ -390,7 +390,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       const isRamschRound = gameState.isRamschRound;
 
       const isGrandHandDuringRamsch = isGrandHand(gt, hand) && isRamschRound;
-      const grandHandBock = isGrandHand(gt, hand) && !isBock && !isBockRound && !isGrandHandDuringRamsch;
+      const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
+      const grandHandBock = isGrandHand(gt, hand) && !isBock && !isBockRound && !isGrandHandDuringRamsch && ghBaseValue >= 96;
       const gameIsBock = isBockRound || isBock || grandHandBock;
 
       let calculatedValue = preview.value;
@@ -661,18 +662,19 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       let firstBockGames = getGamesPerRound(session.player_count);
 
       if (grandHandBock) {
-        bockTriggerCount += 1;
-        firstBockGames = getGamesPerRound(session.player_count) - 1;
-        newBockCount += 1;
+        if (ghBaseValue >= 96) {
+          bockTriggerCount += 1;
+          firstBockGames = getGamesPerRound(session.player_count) - 1;
+          newBockCount += 1;
+        }
       }
 
       if (isGrandHandDuringRamsch) {
-        // Grand Hand during Ramsch: not in a Bockrunde, so it triggers 1 Bock round.
-        // Additionally, if base value >= 96, the "Spiel >= 96" rule also applies.
-        const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
-        bockTriggerCount += 1; // Grand Hand itself triggers Bock
-        if (ghBaseValue >= 96) bockTriggerCount += 1; // Spiel >= 96 rule
-        newBockCount += bockTriggerCount;
+        // Grand Hand during Ramsch: only triggers Bock if base value >= 96.
+        if (ghBaseValue >= 96) {
+          bockTriggerCount += 1;
+          newBockCount += 1;
+        }
       }
 
       if (!isRamschGame(gt) && !spaltarsch && !isGrandHandDuringRamsch && !grandHandBock) {
