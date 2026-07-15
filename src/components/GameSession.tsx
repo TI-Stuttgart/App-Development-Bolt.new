@@ -645,18 +645,8 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           // Add 1 if we just inserted a new Bock round that's not yet reflected in `queue`
           const justAddedBock = triggersBockRound(gt, baseValue, gameResult === 'won', hand, kontra, re, isRamschRound) && !grandHandBock;
           const totalBockRounds = queuedBockRounds + (justAddedBock ? 1 : 0);
-          // Only suppress if there's a Ramsch AFTER all Bock rounds (priority <= min Bock priority)
-          // Spaltarsch Ramsch is at high priority (before Bock) and should NOT suppress this
-          const bockItems = queue.filter(q =>
-            q.type === 'bock' && q.games_remaining > 0 &&
-            !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
-          );
-          const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
-          const hasRamschAfterBock = queue.some(q =>
-            q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
-          );
-
-          if (totalBockRounds >= 2 && !hasRamschAfterBock) {
+          const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds, activeBockBeingDeleted ? activeQueueItem?.id : undefined);
+          for (let i = 0; i < additionalRamsch; i++) {
             await supabase.from('queue_items').insert({
               session_id: session.id,
               type: 'ramsch',
@@ -667,6 +657,15 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         }
       }
 
+      // Track consecutive Grand Hands during Ramsch
+      let newConsecutiveGrandHands = session.consecutive_grand_hands || 0;
+      if (isGrandHandDuringRamsch) {
+        newConsecutiveGrandHands += 1;
+      } else if (isRamschRound) {
+        // A normal Ramsch game resets the counter
+        newConsecutiveGrandHands = 0;
+      }
+
       // Update session
       await supabase
         .from('sessions')
@@ -674,6 +673,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           current_dealer_index: nextDealerIndex,
           current_game_number: gameNumber,
           total_bock_games: newBockCount,
+          consecutive_grand_hands: newConsecutiveGrandHands,
         })
         .eq('id', session.id);
 
@@ -863,6 +863,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
             activePlayers={activePlayers}
             players={players}
             gameState={gameState}
+            consecutiveGrandHands={session.consecutive_grand_hands || 0}
             preview={preview}
             saving={saving}
             onSubmit={handleSubmitGame}
@@ -1027,6 +1028,7 @@ function GameInputForm({
   activePlayers,
   players,
   gameState,
+  consecutiveGrandHands,
   preview,
   saving,
   onSubmit,
@@ -1077,6 +1079,7 @@ function GameInputForm({
   activePlayers: SessionPlayer[];
   players: SessionPlayer[];
   gameState: { isBockRound: boolean; isRamschRound: boolean; gamesRemaining: number };
+  consecutiveGrandHands: number;
   preview: { value: number; display: string };
   saving: boolean;
   onSubmit: () => void;
@@ -1157,21 +1160,30 @@ function GameInputForm({
         <div className="space-y-1.5">
           {/* Row 1: Suit games + Grand */}
           <div className="flex flex-wrap gap-1.5">
-            {(['kreuz', 'pik', 'herz', 'karo', 'grand'] as GameType[]).map((gt) => (
-              <button
-                key={gt}
-                type="button"
-                onClick={() => setGameType(gameType === gt ? '' : gt)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                  gameType === gt
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {gt === 'kreuz' ? 'Kreuz' : gt === 'pik' ? 'Pik' : gt === 'herz' ? 'Herz' : gt === 'karo' ? 'Karo' : 'Grand'}
-              </button>
-            ))}
+            {(['kreuz', 'pik', 'herz', 'karo', 'grand'] as GameType[]).map((gt) => {
+              const grandDisabled = gt === 'grand' && gameState.isRamschRound && consecutiveGrandHands >= 3;
+              return (
+                <button
+                  key={gt}
+                  type="button"
+                  disabled={grandDisabled}
+                  onClick={() => setGameType(gameType === gt ? '' : gt)}
+                  className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                    gameType === gt
+                      ? 'bg-amber-500 text-white'
+                      : grandDisabled
+                        ? 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {gt === 'kreuz' ? 'Kreuz' : gt === 'pik' ? 'Pik' : gt === 'herz' ? 'Herz' : gt === 'karo' ? 'Karo' : 'Grand'}
+                </button>
+              );
+            })}
           </div>
+          {gameState.isRamschRound && consecutiveGrandHands >= 3 && (
+            <p className="text-xs text-amber-400/80">Maximal 3 Grand Hand hintereinander — das nächste Spiel muss Ramsch sein.</p>
+          )}
           {/* Row 2: Null games + Tischramsch (Ramsch removed from manual selection) */}
           <div className="flex flex-wrap gap-1.5">
             {(['null', 'null_hand', 'null_ouvert', 'null_ouvert_hand', 'revolution', 'tischramsch'] as GameType[]).map((gt) => (

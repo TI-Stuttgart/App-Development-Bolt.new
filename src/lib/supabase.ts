@@ -18,6 +18,7 @@ export type Session = {
   current_dealer_index: number;
   current_game_number: number;
   total_bock_games: number;
+  consecutive_grand_hands: number;
   is_active: boolean;
   created_at: string;
   finished_at: string | null;
