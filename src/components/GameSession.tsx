@@ -886,6 +886,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
               <AbrechnungTable players={players} centPerPoint={session.cent_per_point} />
             )}
             <ExportSummary session={session} players={players} games={games} />
+            <RulesDownload />
           </div>
         )}
       </div>
@@ -1800,6 +1801,87 @@ function ExportSummary({
     >
       <Download className="w-5 h-5" />
       Abrechnung exportieren (PDF)
+    </button>
+  );
+}
+
+function RulesDownload() {
+  const handleDownload = () => {
+    const rules = [
+      ['Nr.', 'Kategorie', 'Regel', 'Auslöser / Wirkung'],
+      ['1', 'Spieler & Geber', '', ''],
+      ['1.1', '3 Spieler', 'Alle 3 Spieler aktiv, keiner sitzt', '—'],
+      ['1.2', '4 Spieler', 'Geber sitzt aus', '3 aktive Spieler'],
+      ['1.3', '5 Spieler', 'Geber und 4. Platz nach Geber sitzen aus', '3 aktive Spieler'],
+      ['1.4', 'Geberrotation', 'Nach jedem Spiel Geber +1', 'Ausnahme: Grand Hand während Ramsch — Geber bleibt'],
+      ['2', 'Spielwerte (Basis)', '', ''],
+      ['2.1', 'Farbspiele', 'Kreuz 12, Pik 11, Herz 10, Karo 9', 'Wert = Stufen × Farbwert'],
+      ['2.2', 'Grand', 'Grundwert 24', 'Wert = Stufen × 24'],
+      ['2.3', 'Null-Spiele', 'Null 23, Null Hand 35, Null Ouvert 46, Null Ouvert Hand 59, Revolution 96', 'Feste Werte'],
+      ['2.4', 'Stufen', 'Mit/ohne Buben +1, Hand +1, Schneider +1, Schneider angesagt +1, Schwarz +1, Schwarz angesagt +1', 'Stufen × Farbwert'],
+      ['3', 'Verdopplungen', '', ''],
+      ['3.1', 'Kontra', 'Verdoppelt den Spielwert', 'Manuell umschaltbar'],
+      ['3.2', 'Re', 'Verdoppelt nochmal', 'Manuell umschaltbar'],
+      ['3.3', 'Bock-Runde', 'Verdoppelt den Spielwert', 'Automatisch bei aktiver Bock-Runde'],
+      ['3.4', 'Verloren', 'Bei Verlust nochmal verdoppeln wenn Kontra/Re/Bock aktiv', 'Nur bei verlorenen Spielen'],
+      ['4', 'Bock-Runde auslösen', '', ''],
+      ['4.1', 'Grand Hand (normal)', 'Grand + Hand außerhalb Ramsch', 'Triggert Bock-Runde'],
+      ['4.2', 'Revolution', 'Spieltyp Revolution', 'Triggert Bock-Runde'],
+      ['4.3', 'Kontra verloren', 'Spiel verloren + Kontra aktiv', 'Triggert Bock-Runde'],
+      ['4.4', 'Re', 'Re aktiv (unabhängig vom Ausgang)', 'Triggert Bock-Runde'],
+      ['4.5', 'Wert ≥ 96 gewonnen', 'Gewonnenes Spiel mit Basiswert ≥ 96', 'Triggert Bock-Runde'],
+      ['4.6', 'Grand Hand während Ramsch ≥ 96', 'Grand Hand während Ramsch mit Basiswert ≥ 96', 'Triggert Bock-Runde'],
+      ['5', 'Bock-Runde (Ablauf)', '', ''],
+      ['5.1', 'Länge', 'Anzahl Spiele = Spielerzahl', 'Pro Runde'],
+      ['5.2', 'Grand Hand als Bock-Auslöser', 'Bock-Runde wird um 1 Spiel verkürzt', 'games_remaining = Spielerzahl − 1'],
+      ['5.3', 'Queue-Priorität', 'Neue Bock-Runden bekommen priority 0', 'Niedrigste Priority = als Nächstes dran'],
+      ['6', 'Ramsch-Runde', '', ''],
+      ['6.1', 'Auslösung', 'Automatisch nach je 2 Bock-Runden', 'Ramsch-Runde wird am Ende der Queue eingefügt'],
+      ['6.2', 'Länge', 'Anzahl Spiele = Spielerzahl', 'Pro Runde'],
+      ['6.3', 'Verlierer', 'Spieler mit den meisten Augen', 'Skat geht nur bei einzelnem Verlierer dazu'],
+      ['6.4', 'Schieben', 'Pro geschobenem Spieler: × 2', 'Multiplikator'],
+      ['6.5', 'Jungfrau', 'Jungfrau aktiv: × 2', 'Multiplikator'],
+      ['6.6', 'Bock während Ramsch', 'Aktive Bock-Runde oder manuelles Bock: × 2', 'Multiplikator'],
+      ['6.7', 'Durchmarsch', 'Spieler hat 0 Augen (alle anderen >0): Wert = 120 × Multiplikatoren', 'Spieler mit 0 Augen gewinnt'],
+      ['6.8', 'Durchmarsch durch 2 Jungfrauen', '≥ 2 Jungfrauen + Spieler mit 0 Augen: Durchmarsch', 'Automatisch erkannt'],
+      ['7', 'Grand Hand während Ramsch', '', ''],
+      ['7.1', 'Auswahl', 'Grand + Hand während aktiver Ramsch-Runde', 'Spieltyp Grand, Hand aktiviert'],
+      ['7.2', 'Wertung', 'Zählt immer als verloren — Soloist zahlt negativen Wert', 'Verdopplung wie bei verlorenen Spielen'],
+      ['7.3', 'Queue-Verbrauch', 'Grand Hand verbraucht kein Ramsch-Spiel aus der Queue', 'games_remaining wird nicht dekrementiert'],
+      ['7.4', 'Geber bleibt', 'Bei Grand Hand während Ramsch rückt Geber nicht weiter', 'current_dealer_index bleibt gleich'],
+      ['7.5', 'Max 3 hintereinander', 'Maximal 3 Grand Hands in Folge — danach muss Ramsch gespielt werden', 'Grand-Button deaktiviert, Hinweis angezeigt'],
+      ['7.6', 'Reset nach Ramsch', 'Normales Ramsch-Spiel setzt Zähler zurück auf 0', 'consecutive_grand_hands = 0'],
+      ['8', 'Spaltarsch', '', ''],
+      ['8.1', 'Auslöser', 'Soloist hat exakt 60 Punkte (Toggle im UI)', 'Manuell umschaltbar'],
+      ['8.2', 'Wirkung', 'Fügt Ramsch (höchste Priority) + Bock (zweithöchste) hinzu', 'Spaltarsch-Ramsch zuerst, dann Bock'],
+      ['8.3', 'Bock-Zähler', 'Spaltarsch erhöht Bock-Runden-Zähler um 1', 'Für 2-Bock-→-Ramsch-Regel'],
+      ['9', 'Tischramsch', '', ''],
+      ['9.1', 'Wertung', 'Verlierer = Spieler mit meisten Augen, Skat an Verlierer', 'loserTotal = maxPts + Skat'],
+      ['9.2', 'Multiplikator', 'Basis × 2, × 2 bei Jungfrau, × 2 bei Bock', 'Alle Verlierer zahlen einzeln'],
+      ['10', 'Abrechnung', '', ''],
+      ['10.1', 'Punkte', 'Kumulierter Punktestand pro Spieler', 'Pro Spiel aktualisiert'],
+      ['10.2', 'Paarweise Differenz', 'Für jedes Spielerpaar (i,j) wird Differenz angezeigt', 'Tabelle: Spieler_i − Spieler_j'],
+      ['10.3', 'Saldo', 'Summe aller Differenzen pro Spieler', 'Netto-Gewinn/Verlust'],
+      ['10.4', 'Euro', 'Saldo × cent_per_point / 100', 'Configurierbar pro Session'],
+    ];
+
+    const csv = rules.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(';')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'skat-regeln.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      className="w-full py-4 bg-slate-700 text-white font-semibold rounded-xl hover:bg-slate-600 transition-all flex items-center justify-center gap-2"
+    >
+      <Download className="w-5 h-5" />
+      Regeln herunterladen (CSV)
     </button>
   );
 }
