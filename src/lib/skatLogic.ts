@@ -111,8 +111,7 @@ export function countBockTriggers(
 ): number {
   let count = 0;
   if (won && baseValue >= 96) count++;
-  if (kontra) count++;
-  if (re) count++;
+  if (kontra || re) count++;
   return count;
 }
 
