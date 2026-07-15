@@ -315,7 +315,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         return { value: dmValue, display: `${dmValue}` };
       }
 
-      let loserBase = singleLoser ? maxPts + ramschSkatPoints : maxPts;
+      let loserBase = maxPts + ramschSkatPoints;
       let mult = 1;
       const schiebenCount = activePlayers.filter(p => ramschSchiebenPlayers[p.id]).length;
       for (let i = 0; i < schiebenCount; i++) mult *= 2;
@@ -477,7 +477,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         const dmPlayerAuto = activePlayers.find(p => (ramschPlayerPoints[p.id] ?? 0) === 0 && winners.length > 0);
         const dmPlayer = dmPlayerExplicit || dmPlayerAuto;
         ramschIsDM = !!dmPlayerExplicit || (!!dmPlayer && maxPts > 0) || (jungfrauCount >= 2 && !!dmPlayer);
-        let loserBase = ramschIsDM ? 120 : singleLoser ? maxPts + ramschSkatPoints : maxPts;
+        let loserBase = ramschIsDM ? 120 : maxPts + ramschSkatPoints;
         let mult = 1;
         for (let i = 0; i < schiebenCount; i++) mult *= 2;
         if (jungfrauCount > 0) mult *= 2;
