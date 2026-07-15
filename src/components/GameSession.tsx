@@ -33,6 +33,25 @@ interface GameSessionProps {
   onBack: () => void;
 }
 
+// After every 2 Bock rounds (not necessarily consecutive), add a Ramsch round at the end.
+// Returns the number of additional Ramsch rounds to insert.
+function calcAdditionalRamsch(
+  queue: QueueItem[],
+  totalBockRounds: number,
+  excludeBockId?: string
+): number {
+  const bockItems = queue.filter(q =>
+    q.type === 'bock' && q.games_remaining > 0 &&
+    !(excludeBockId && q.id === excludeBockId)
+  );
+  const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
+  const existingRamschAfterBock = queue.filter(q =>
+    q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
+  ).length;
+  const neededRamsch = Math.floor(totalBockRounds / 2);
+  return Math.max(0, neededRamsch - existingRamschAfterBock);
+}
+
 type GameResult = 'won' | 'lost' | '';
 
 export function GameSession({ session, players: initialPlayers, onBack }: GameSessionProps) {
@@ -547,21 +566,14 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
         ]);
         newBockCount += 1;
 
-        // After 2 Bock rounds, add a Ramsch round (if not already queued)
+        // After every 2 Bock rounds, add a Ramsch round (if not already queued)
         const gamesForNewRound = getGamesPerRound(session.player_count);
         const queuedBockRounds = queue.filter(q =>
           q.type === 'bock' && q.games_remaining > 0
         ).length;
         const totalBockRounds = queuedBockRounds + 1;
-        const bockItems = queue.filter(q =>
-          q.type === 'bock' && q.games_remaining > 0
-        );
-        const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
-        const hasRamschAfterBock = queue.some(q =>
-          q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
-        );
-
-        if (totalBockRounds >= 2 && !hasRamschAfterBock) {
+        const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds);
+        for (let i = 0; i < additionalRamsch; i++) {
           await supabase.from('queue_items').insert({
             session_id: session.id,
             type: 'ramsch',
@@ -584,20 +596,13 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
           });
           newBockCount += 1;
 
-          // After 2 Bock rounds, add a Ramsch round (if not already queued)
+          // After every 2 Bock rounds, add a Ramsch round (if not already queued)
           const queuedBockRounds = queue.filter(q =>
             q.type === 'bock' && q.games_remaining > 0
           ).length;
           const totalBockRounds = queuedBockRounds + 1;
-          const bockItems = queue.filter(q =>
-            q.type === 'bock' && q.games_remaining > 0
-          );
-          const minBockPriority = bockItems.length > 0 ? Math.min(...bockItems.map(q => q.priority)) : Infinity;
-          const hasRamschAfterBock = queue.some(q =>
-            q.type === 'ramsch' && q.games_remaining > 0 && q.priority <= minBockPriority
-          );
-
-          if (totalBockRounds >= 2 && !hasRamschAfterBock) {
+          const additionalRamsch = calcAdditionalRamsch(queue, totalBockRounds);
+          for (let i = 0; i < additionalRamsch; i++) {
             await supabase.from('queue_items').insert({
               session_id: session.id,
               type: 'ramsch',
