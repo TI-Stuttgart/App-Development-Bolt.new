@@ -340,7 +340,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       schwarzAnnounced
     );
 
-    const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound && baseValue >= 96;
+    const grandHandBock = isGrandHand(gt, hand) && !isBock && !gameState.isBockRound && !gameState.isRamschRound;
 
     const finalValue = calculateFinalGameValue(
       baseValue,
@@ -393,7 +393,7 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
 
       const isGrandHandDuringRamsch = isGrandHand(gt, hand) && isRamschRound;
       const ghBaseValue = calculateBaseGameValue(gt, bubenCount, bubenWith, hand, schneider, schneiderAnnounced, schwarz, schwarzAnnounced);
-      const grandHandBock = isGrandHand(gt, hand) && !isBock && !isBockRound && !isGrandHandDuringRamsch && ghBaseValue >= 96;
+      const grandHandBock = isGrandHand(gt, hand) && !isBock && !isBockRound && !isGrandHandDuringRamsch;
       const gameIsBock = isBockRound || isBock || grandHandBock;
 
       let calculatedValue = preview.value;
@@ -664,11 +664,9 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       let firstBockGames = getGamesPerRound(session.player_count);
 
       if (grandHandBock) {
-        if (ghBaseValue >= 96) {
-          bockTriggerCount += 1;
-          firstBockGames = getGamesPerRound(session.player_count) - 1;
-          newBockCount += 1;
-        }
+        bockTriggerCount += 1;
+        firstBockGames = getGamesPerRound(session.player_count) - 1;
+        newBockCount += 1;
       }
 
       if (isGrandHandDuringRamsch) {
