@@ -1367,12 +1367,12 @@ function GameInputForm({
                 const hasSchieben = !!ramschSchiebenPlayers[p.id];
                 const isDurchmarsch = !!ramschDurchmarschPlayers[p.id];
                 return (
-                  <div key={p.id} className="flex items-center gap-2 flex-wrap">
+                  <div key={p.id} className="flex items-center gap-2">
                     <span className="w-24 text-sm font-medium text-slate-300 truncate">{p.name}</span>
                     <button
                       type="button"
                       onClick={() => setRamschJungfrauPlayers({ ...ramschJungfrauPlayers, [p.id]: !isJungfrau })}
-                      className={`w-28 px-3 py-1.5 rounded text-sm font-medium transition-all text-center ${
+                      className={`w-20 px-3 py-1.5 rounded text-sm font-medium transition-all text-center ${
                         isJungfrau
                           ? 'bg-amber-500 text-white'
                           : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
@@ -1415,7 +1415,7 @@ function GameInputForm({
                 const maxPts = Math.max(...pts);
                 const isLoser = val === maxPts && val > 0;
                 return (
-                  <div key={p.id} className="flex items-center gap-3">
+                  <div key={p.id} className="flex items-center gap-2">
                     <span className={`w-24 text-sm font-medium truncate ${isLoser ? 'text-red-400' : 'text-slate-300'}`}>{p.name}</span>
                     <input
                       type="text"
@@ -1426,14 +1426,14 @@ function GameInputForm({
                         const n = Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
                         setRamschPlayerPoints({ ...ramschPlayerPoints, [p.id]: n });
                       }}
-                      className="w-28 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-20 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                     {isLoser && val > 0 && <span className="text-xs text-red-400 font-medium">Verlierer</span>}
                   </div>
                 );
               })}
               {/* Skat field with inline checkmark */}
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center gap-2 pt-2">
                 <span className="w-24 text-sm font-medium text-slate-400">Skat</span>
                 <input
                   type="text"
@@ -1441,7 +1441,7 @@ function GameInputForm({
                   value={ramschSkatPoints === 0 ? '' : ramschSkatPoints}
                   placeholder="0"
                   onChange={(e) => setRamschSkatPoints(Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)))}
-                  className="w-28 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-20 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 {(() => {
                   const total = activePlayers.reduce((s, p) => s + (ramschPlayerPoints[p.id] ?? 0), 0) + ramschSkatPoints;
