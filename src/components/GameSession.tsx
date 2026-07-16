@@ -1372,7 +1372,7 @@ function GameInputForm({
                     <button
                       type="button"
                       onClick={() => setRamschJungfrauPlayers({ ...ramschJungfrauPlayers, [p.id]: !isJungfrau })}
-                      className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                      className={`w-28 px-3 py-1.5 rounded text-sm font-medium transition-all text-center ${
                         isJungfrau
                           ? 'bg-amber-500 text-white'
                           : 'bg-slate-900/50 border border-slate-600 text-slate-400 hover:bg-slate-700'
@@ -1426,7 +1426,7 @@ function GameInputForm({
                         const n = Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0));
                         setRamschPlayerPoints({ ...ramschPlayerPoints, [p.id]: n });
                       }}
-                      className="w-24 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-28 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                     {isLoser && val > 0 && <span className="text-xs text-red-400 font-medium">Verlierer</span>}
                   </div>
@@ -1441,7 +1441,7 @@ function GameInputForm({
                   value={ramschSkatPoints === 0 ? '' : ramschSkatPoints}
                   placeholder="0"
                   onChange={(e) => setRamschSkatPoints(Math.max(0, Math.min(120, parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0)))}
-                  className="w-24 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-28 px-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded text-white text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 {(() => {
                   const total = activePlayers.reduce((s, p) => s + (ramschPlayerPoints[p.id] ?? 0), 0) + ramschSkatPoints;
