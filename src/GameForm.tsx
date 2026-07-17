@@ -329,6 +329,7 @@ export default function GameForm({
                   />
                   Jungfrau
                 </label>
+                {gameType !== 'tischramsch' && (
                 <label className="checkbox-label">
                   <span>Schieben (x{ramschSchiebenCount})</span>
                   <div className="counter-buttons">
@@ -347,6 +348,7 @@ export default function GameForm({
                     </button>
                   </div>
                 </label>
+                )}
                 <label className="checkbox-label">
                   <input
                     type="checkbox"

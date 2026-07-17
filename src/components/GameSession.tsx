@@ -1381,6 +1381,7 @@ function GameInputForm({
                     >
                       Jungfrau
                     </button>
+                    {gameType !== 'tischramsch' && (
                     <button
                       type="button"
                       onClick={() => setRamschSchiebenPlayers({ ...ramschSchiebenPlayers, [p.id]: !hasSchieben })}
@@ -1392,6 +1393,7 @@ function GameInputForm({
                     >
                       Schieben
                     </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setRamschDurchmarschPlayers({ ...ramschDurchmarschPlayers, [p.id]: !isDurchmarsch })}
