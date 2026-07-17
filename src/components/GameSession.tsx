@@ -701,12 +701,13 @@ export function GameSession({ session, players: initialPlayers, onBack }: GameSe
       }
 
       // After all Bock insertions, check if a Ramsch is needed (every 2 Bock → 1 Ramsch).
-      // Count ALL Bock rounds (completed + queued + Spaltarsch + new regular).
+      // Count regular Bock rounds (completed + queued priority-0 + new regular).
+      // Spaltarsch Bock (high priority) does NOT count toward the 2-Bock→Ramsch rule.
       const activeBockBeingDeleted = activeQueueItem?.type === 'bock' && activeQueueItem.games_remaining <= 1;
       const allQueuedBock = queue.filter(q =>
-        q.type === 'bock' && q.games_remaining > 0 &&
+        q.type === 'bock' && q.games_remaining > 0 && q.priority === 0 &&
         !(activeBockBeingDeleted && q.id === activeQueueItem!.id)
-      ).length + (spaltarschBockInserted ? 1 : 0) + bockTriggerCount;
+      ).length + bockTriggerCount;
       const allQueuedRegularRamsch = queue.filter(q =>
         q.type === 'ramsch' && q.games_remaining > 0 && q.priority === 0
       ).length;
